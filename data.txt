@@ -1,0 +1,29 @@
+- install nextjs - npx create-next-app@latest
+- daisyUI -> docs -> npm i -D daisyui@latest
+- npm install @clerk/nextjs
+- setup middleware
+- signup and signin page get code from clerk docs
+
+- (app) or (auth) => This is a special Next.js feature (App Router) called "Route Groups"
+- Even though you see (auth) in the folder name, your URL will not be /auth/sign-in. It will just be /sign-in
+
+- in Next.js App Router (13+), each folder = route, and inside that folder:
+ - page.tsx → defines what to render on that route.
+ - layout.tsx → defines layout (navbar, footer, etc.) for that route.
+ - loading.tsx → defines loading UI for that route.
+ - error.tsx → defines error UI for that route.
+
+- go on prisma website get started from scratch 
+- i am using relational database -> npm install prisma typescript tsx @types/node --save-dev
+- then initialize prisma -> npx prisma init
+
+- using neon db postgres, create acc and paste db connect link in env.
+- prisma is ORM it not provide database, prisma is like mongoose
+- Prisma = ORM for SQL databases (Postgres, MySQL, etc.)
+
+- create 1st model in prisma file the hit command
+- npx prisma migrate dev --name init => “Sync my Prisma schema with the DB by creating an initial migration called init.”
+- then run this command => npm install @prisma/client
+- @prisma/client = lets your Next.js/Node code talk to the database using Prisma.
+
+- clodinary-nextjs => npm install next-cloudinary
