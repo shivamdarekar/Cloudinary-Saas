@@ -3,6 +3,7 @@ import React, {useState, useEffect, useCallback} from 'react'
 import axios from 'axios'
 import VideoCard from '@/components/VideoCard'
 import { Video } from '@/types'
+
 function Home() {
     const [videos, setVideos] = useState<Video[]>([])
     const [loading, setLoading] = useState(true)
@@ -30,25 +31,21 @@ function Home() {
         fetchVideos()
     }, [fetchVideos])
 
-    const handleDownload = useCallback(async (url: string, title: string) => {
-      try {
-          const response = await axios.get(url, { responseType: "blob" }); // Fetch as blob
-          const blob = new Blob([response.data], { type: "video/mp4" });
+    const handleDownload = useCallback((url: string, title: string) => {
+        try {
+            const link = document.createElement("a");//<a tag
+            link.href = url;
+            link.setAttribute("download", `${title}.mp4`);
+            link.setAttribute("target", "_blank");
+            document.body.appendChild(link);//Anchor tag ko temporarily DOM me dalo
+            link.click();
+            document.body.removeChild(link);//remove from dom
+        
+        } catch (error) {
+            console.error("Download failed:", error);
+        }
+    }, []);
   
-          const link = document.createElement("a");
-          link.href = URL.createObjectURL(blob);
-          link.setAttribute("download", `${title}.mp4`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(link.href); // Clean up memory
-      } catch (error) {
-          console.error("Error downloading video:", error);
-      }
-  }, []);
-  
-  
-
     if(loading){
         return <div>Loading...</div>
     }
