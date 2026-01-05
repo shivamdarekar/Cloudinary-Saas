@@ -5,9 +5,11 @@ import { ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import ProcessingResult from "../../../components/ProcessingResult";
+import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 
 function ImageOptimizer() {
   const { user } = useUser();
+  const { deleteImage } = useCloudinaryDelete();
   const [file, setFile] = useState<File | null>(null);
   const [quality, setQuality] = useState<number>(80);
   const [width, setWidth] = useState<number>(800);
@@ -68,7 +70,7 @@ function ImageOptimizer() {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!user) {
       toast.error("Please sign in to download");
       window.location.href = "/sign-in";
@@ -76,11 +78,40 @@ function ImageOptimizer() {
     }
     
     if (processedImage) {
-      const link = document.createElement("a");
-      link.href = processedImage;
-      link.download = `optimized-${file?.name}`;
-      link.click();
-      toast.success("Optimized image downloaded successfully!");
+      try {
+        // Fetch as blob to force download
+        const response = await fetch(processedImage);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.statusText}`);
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `optimized-${file?.name || 'image.jpg'}`;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Wait a moment to ensure download started
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Cleanup
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        toast.success("Optimized image downloaded successfully!");
+        
+        // ✅ Only delete if download was successful
+        await deleteImage(processedImage);
+        console.log('🗑️ Optimized image deleted from Cloudinary');
+      } catch (error) {
+        console.error('Download error:', error);
+        // ❌ Don't delete if download failed - user can retry
+        toast.error("Download failed. Click download to try again.");
+      }
     }
   };
 

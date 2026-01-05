@@ -12,7 +12,7 @@ import {
   ImageIcon,
   Scissors,
   Settings,
-  Tag,
+  RefreshCw,
   Share2,
   CreditCard,
   X
@@ -25,7 +25,7 @@ const sidebarItems = [
   { href: "/image-optimizer", icon: ImageIcon, label: "Image Optimizer", color: "text-green-500" },
   { href: "/social-resizer", icon: Share2, label: "Social Resizer", color: "text-blue-600" },
   { href: "/passport-maker", icon: CreditCard, label: "Passport Maker", color: "text-emerald-500" },
-  { href: "/auto-tagger", icon: Tag, label: "Auto Tagger", color: "text-indigo-500" },
+  { href: "/format-converter", icon: RefreshCw, label: "Format Converter", color: "text-indigo-500" },
 ];
 
 export default function AppLayout({

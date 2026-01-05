@@ -6,9 +6,11 @@ import axios from "axios";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import ProcessingResult from "../../../components/ProcessingResult";
+import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 
 function ImageCompressor() {
   const { user } = useUser();
+  const { deleteImage } = useCloudinaryDelete();
   const [file, setFile] = useState<File | null>(null);
   const [targetSize, setTargetSize] = useState<number>(100);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -61,6 +63,11 @@ function ImageCompressor() {
       try {
         // Fetch the image as a blob
         const response = await fetch(processedImage);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.statusText}`);
+        }
+        
         const blob = await response.blob();
         
         // Create a download link
@@ -71,24 +78,22 @@ function ImageCompressor() {
         document.body.appendChild(link);
         link.click();
         
+        // Wait a moment to ensure download started
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // Clean up
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
         
-        // Delete from Cloudinary after successful download
-        const publicId = processedImage.split('/').pop()?.split('.')[0];
-        if (publicId) {
-          await fetch('/api/delete-image', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ publicId: `compressed-images/${publicId}` })
-          });
-        }
-        
         toast.success("Download completed successfully!");
+        
+        // ✅ Only delete if download was successful
+        await deleteImage(processedImage);
+        console.log('🗑️ Compressed image deleted from Cloudinary');
       } catch (error) {
         console.error('Download failed:', error);
-        toast.error("Download failed. Please try again.");
+        // ❌ Don't delete if download failed - user can retry
+        toast.error("Download failed. Click download to try again.");
       }
     }
   };

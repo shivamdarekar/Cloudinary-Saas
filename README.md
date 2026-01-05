@@ -1,6 +1,8 @@
 # 🎨 ImageCraft Pro - AI-Powered Image Processing Suite
 
-**ImageCraft Pro** is a modern, full-stack SaaS application that provides professional-grade image processing tools powered by **Cloudinary's AI and cloud infrastructure**. Transform, optimize, and enhance your images with cutting-edge technology through an intuitive web interface.
+**ImageCraft Pro** is a production-ready, full-stack SaaS application that provides professional-grade image processing tools powered by **Cloudinary's AI and cloud infrastructure**. Transform, optimize, and enhance your images with cutting-edge technology through an intuitive, mobile-responsive web interface.
+
+🚀 **Production Features**: Security headers, rate limiting, SEO optimization, mobile-first design, and comprehensive error handling.
 
 ---
 
@@ -36,11 +38,11 @@
 - **Background color options** (White, Light Blue, Gray)
 - **Compliance with official standards**
 
-### 🏷️ Auto Tagging
-- **AI-generated tags** and metadata
-- **Fallback analysis** when premium features unavailable
-- **Content recognition** for better organization
-- **Batch tagging** support
+### 🔄 Format Converter
+- **Universal format support**: Convert between JPG, PNG, WebP, AVIF, GIF
+- **Quality control**: 5 quality levels from auto to 100%
+- **Modern formats**: WebP and AVIF for smaller file sizes
+- **No premium required**: Works with basic Cloudinary features
 
 ### 📱 iPhone Compatibility
 - **Full HEIC/HEIF support** for iPhone photos
@@ -52,13 +54,16 @@
 
 ## 🛠️ Technology Stack
 
-- **Frontend:** Next.js 15, React 19, TypeScript
-- **Styling:** Tailwind CSS with custom components
+- **Frontend:** Next.js 15.5.2, React 19, TypeScript
+- **Styling:** Tailwind CSS 3.4 with mobile-first responsive design
 - **Authentication:** Clerk (secure user management)
-- **Database:** Prisma ORM with PostgreSQL
-- **Cloud Services:** Cloudinary (image processing & storage)
-- **UI Components:** Lucide React, Custom Dropdown, Sonner (notifications)
-- **File Handling:** Drag & drop, multi-format support
+- **Cloud Services:** Cloudinary (AI-powered image processing & storage)
+- **Rate Limiting:** Upstash Redis with in-memory fallback (10 req/10sec per IP)
+- **UI Components:** Lucide React, Custom Dropdown, Sonner (toast notifications)
+- **Shared Utilities:** Reusable hooks (useCloudinaryDelete), fileUtils, centralized rate limiter
+- **File Handling:** Drag & drop, HEIC/HEIF support, comprehensive validation
+- **Security:** Production-grade headers, XSS protection, CSRF prevention
+- **SEO:** Dynamic sitemap, robots.txt, optimized metadata
 - **Development Tools:** ESLint, TypeScript, TSX
 
 ---
@@ -72,26 +77,29 @@
 │   │   ├── image-compressor/ # Compression tool
 │   │   ├── background-remover/ # Background removal
 │   │   ├── image-optimizer/  # Optimization tool
-│   │   ├── social-resizer/   # Social media resizer
+│   │   ├── format-converter/ # Format conversion tool (NEW)
 │   │   ├── passport-maker/   # Passport photo maker
-│   │   └── auto-tagger/      # AI tagging
+│   │   └── social-resizer/   # Social media resizer
 │   ├── (auth)/               # Authentication pages
-│   ├── api/                  # API routes
+│   ├── api/                  # API routes (all with rate limiting)
 │   │   ├── image-compress/   # Compression API
 │   │   ├── background-remove/ # Background removal API
 │   │   ├── image-optimize/   # Optimization API
-│   │   ├── social-resize/    # Social resizing API
+│   │   ├── format-convert/   # Format conversion API (NEW)
 │   │   ├── passport-resize/  # Passport photo API
-│   │   ├── auto-tag/         # Auto tagging API
-│   │   ├── delete-image/     # Image cleanup API
-│   │   └── download/         # Download handler
+│   │   ├── social-resize/    # Social resizing API
+│   │   ├── auto-tag/         # Auto-tagging API
+│   │   └── delete-image/     # Automatic cleanup API
 │   └── globals.css           # Global styles
 ├── components/
-│   ├── ImageUpload.tsx       # Drag & drop upload component
+│   ├── ImageUpload.tsx       # Enhanced drag & drop with validation
 │   ├── Dropdown.tsx          # Professional dropdown
 │   └── ProcessingResult.tsx  # Results display
-├── types/                    # TypeScript definitions
-├── prisma/                   # Database schema
+├── lib/
+│   ├── fileUtils.ts          # Shared utilities (formatFileSize, downloadImage, extractFileFormat)
+│   ├── useCloudinaryDelete.ts # Reusable delete hook
+│   ├── ratelimit.ts          # Centralized rate limiting with fallback
+│   └── prisma.ts             # Database client
 └── middleware.ts             # Auth middleware
 ```
 
@@ -101,9 +109,9 @@
 
 ### Prerequisites
 - Node.js 18+
-- PostgreSQL database
-- Cloudinary account
+- Cloudinary account (free tier supported)
 - Clerk account
+- Upstash Redis (optional, for production rate limiting)
 
 ### Installation
 
@@ -134,17 +142,15 @@ NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 
-# Database
-DATABASE_URL=your_postgresql_url
+# Rate Limiting (Production)
+UPSTASH_REDIS_REST_URL=your_upstash_url
+UPSTASH_REDIS_REST_TOKEN=your_upstash_token
+
+# Environment
+NODE_ENV=development
 ```
 
-4. **Set up database**
-```bash
-npx prisma generate
-npx prisma db push
-```
-
-5. **Run development server**
+4. **Run development server**
 ```bash
 npm run dev
 ```
@@ -163,15 +169,18 @@ npm run dev
 - **Smart cropping**: AI detects best crop area automatically
 - **Preview system**: See results before processing
 
+### Format Conversion
+- **Universal compatibility**: Convert between JPG, PNG, WebP, AVIF, GIF
+- **Quality control**: Fine-tune compression with 5 quality levels
+- **Modern formats**: WebP and AVIF for next-generation web performance
+- **No premium required**: Works with standard Cloudinary features
+- **Smart format detection**: Handles HEIC and other formats with fallback logic
+
 ### Passport Photo Compliance
 - **Official standards**: Meets government document requirements
-- **Face detection**: Automatically centers face in frame
-- **Background options**: Compliant background colors
-
-### iPhone Photo Support
-- **HEIC compatibility**: Full support for iPhone's native format
-- **Automatic conversion**: Server-side processing via Cloudinary
-- **No quality loss**: Professional conversion algorithms
+- **AI face detection**: Automatically centers face in frame with crop:"thumb" and gravity:"face:auto"
+- **Zoom control**: Fine-tune face positioning with zoom slider
+- **Background options**: Compliant background colors (White, Light Blue, Gray)
 
 ---
 
@@ -179,24 +188,47 @@ npm run dev
 
 During development, several technical challenges were solved:
 
-- **Efficient image processing**: Leveraging Cloudinary's server-side processing
-- **Real-time preview**: Balancing performance with user experience
-- **File format compatibility**: Supporting modern formats like HEIC
-- **Professional UI/UX**: Creating intuitive interfaces for complex operations
+- **Stateless architecture**: Removed database dependency for pure processing workflow
+- **Smart fallback systems**: Format conversion works reliably without premium features
+- **Production security**: Comprehensive security headers and rate limiting on all 8 API routes
+- **Mobile-first design**: Responsive components with touch-friendly interfaces
+- **HEIC server-side processing**: Cloudinary handles conversion automatically
 - **Credit optimization**: Minimizing API usage while maximizing functionality
-- **Error handling**: Graceful fallbacks for various edge cases
+- **Professional UI components**: Reusable dropdown and upload components with enhanced validation
+- **Error handling**: Graceful fallbacks with detailed logging and better MIME type detection
+- **DRY principles**: Shared utilities (fileUtils.ts, useCloudinaryDelete hook) to eliminate code duplication
+- **Smart resource management**: Images automatically deleted after successful download, kept on failure for retry
+- **Centralized rate limiting**: Single checkRateLimit() function with Redis and in-memory fallback
 
 ---
 
 ## 📊 Performance & Optimization
 
 - **Server-side processing**: All heavy operations handled by Cloudinary
-- **Automatic cleanup**: Images deleted after download to save storage
-- **Optimized API calls**: Minimal credit usage with maximum functionality
-- **Responsive design**: Works seamlessly on desktop and mobile
-- **Fast loading**: Optimized bundle size and lazy loading
+- **Stateless processing**: No database overhead for faster response times
+- **Rate limiting**: 10 requests per 10 seconds per IP with Redis caching and in-memory fallback
+- **Security headers**: XSS protection, frame options, content type validation
+- **SEO optimization**: Dynamic sitemap, robots.txt, meta tags
+- **Mobile-responsive**: Touch-friendly interface with breakpoint optimization
+- **Automatic cleanup**: Images deleted after successful download to save storage (kept on failure for retry)
+- **Production-ready**: Environment validation, error boundaries, and comprehensive error handling
+- **Shared utilities**: formatFileSize(), downloadImage(), extractFileFormat() for code reusability
+- **Centralized rate limiter**: Single source of truth with InMemoryRateLimiter class for development
 
 ---
 
-🎨 **ImageCraft Pro** demonstrates the power of combining **modern web technologies** with **AI-powered cloud services** to create a **professional-grade image processing platform** that's both powerful and user-friendly.  
+## 🔒 Security & Production Features
+
+- **Rate Limiting**: Upstash Redis with 10 req/10sec per IP limit, in-memory fallback for development
+- **Security Headers**: XSS protection, clickjacking prevention, MIME sniffing protection
+- **Environment Validation**: Comprehensive config validation on startup for all API routes
+- **Error Boundaries**: Graceful error handling with detailed logging
+- **Authentication**: Secure Clerk integration with protected routes via middleware
+- **File Validation**: Comprehensive upload validation with MIME type detection and sanitization
+- **Centralized Rate Limiting**: Single checkRateLimit() function applied consistently across all 8 API routes
+- **Smart Resource Management**: Automatic cleanup with useCloudinaryDelete hook, delete only after successful download
+
+---
+
+🎨 **ImageCraft Pro** demonstrates the power of combining **modern web technologies** with **AI-powered cloud services** to create a **production-ready image processing platform** that's both powerful and user-friendly.  
 

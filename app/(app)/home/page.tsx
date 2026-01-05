@@ -2,7 +2,7 @@
 import React from "react";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { ImageIcon, Zap, Shield, Download, ArrowRight, Share2, CreditCard, Tag } from "lucide-react";
+import { ImageIcon, Zap, Shield, Download, ArrowRight, Share2, CreditCard, RefreshCw } from "lucide-react";
 
 function Home() {
   const { user } = useUser();
@@ -44,10 +44,10 @@ function Home() {
       color: "from-emerald-500 to-teal-500"
     },
     {
-      icon: Tag,
-      title: "Auto Tagger",
-      description: "Generate AI-powered tags and metadata for your images automatically",
-      href: "/auto-tagger",
+      icon: RefreshCw,
+      title: "Format Converter",
+      description: "Convert between JPG, PNG, WebP, AVIF, GIF with quality control",
+      href: "/format-converter",
       color: "from-indigo-500 to-purple-500"
     }
   ];

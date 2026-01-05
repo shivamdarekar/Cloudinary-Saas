@@ -45,19 +45,23 @@ export default function ImageUpload({
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
     const selectedFile = e.target.files?.[0];
-    console.log('📁 Input change triggered:', selectedFile ? 'File selected' : 'No file');
+    console.log('📁 File selected:', selectedFile?.name || 'No file');
     
     if (selectedFile) {
+      console.log('📊 File details:', {
+        name: selectedFile.name,
+        type: selectedFile.type,
+        size: selectedFile.size
+      });
       validateAndSelectFile(selectedFile);
     } else {
       console.log('⚠️ No file selected from input');
     }
-    // Reset the input value to allow selecting the same file again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    
+    // IMPORTANT: Reset input to allow re-selecting the same file
+    e.target.value = '';
+  };
   };
 
   const validateAndSelectFile = (selectedFile: File) => {

@@ -118,7 +118,7 @@ function PassportMaker() {
           <p className="text-gray-600">Create perfect passport & ID photos for official documents</p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
           {/* Upload & Settings */}
           <div className="modern-card p-6 bg-white">
             <h2 className="text-xl font-semibold mb-4 text-gray-900">Upload & Configure</h2>
@@ -186,7 +186,7 @@ function PassportMaker() {
           </div>
 
           {/* Preview */}
-          <div className="lg:col-span-2 modern-card p-6 bg-white">
+          <div className="lg:col-span-2 modern-card p-4 lg:p-6 bg-white">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-900">Preview</h2>
               {processedImage && (
