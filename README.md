@@ -56,7 +56,7 @@
 
 ## 🛠️ Technology Stack
 
-- **Frontend:** Next.js 15.5.2, React 19, TypeScript
+- **Frontend:** Next.js 15.1.7+, React 19, TypeScript
 - **Styling:** Tailwind CSS 4 with mobile-first responsive design
 - **Authentication:** Clerk (secure user management)
 - **Cloud Services:** Cloudinary (AI-powered image processing & storage)
