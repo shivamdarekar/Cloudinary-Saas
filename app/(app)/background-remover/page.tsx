@@ -5,6 +5,7 @@ import { Scissors } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import ProcessingResult from "../../../components/ProcessingResult";
+import { downloadImage } from "../../../lib/fileUtils";
 
 function BackgroundRemover() {
   const { user } = useUser();
@@ -52,14 +53,14 @@ function BackgroundRemover() {
       setProcessedSize(Math.floor(originalSize * 0.8));
       toast.success("Background removed successfully!");
     } catch (error: any) {
-      console.error("Background removal error:", error);
+      // console.error("Background removal error:", error);
       toast.error(error.message || "Failed to remove background");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!user) {
       toast.error("Please sign in to download");
       window.location.href = "/sign-in";
@@ -67,11 +68,16 @@ function BackgroundRemover() {
     }
     
     if (processedImage) {
-      const link = document.createElement("a");
-      link.href = processedImage;
-      link.download = `no-bg-${file?.name}`;
-      link.click();
-      toast.success("Background removed image downloaded!");
+      const success = await downloadImage(
+        processedImage,
+        `no-bg-${file?.name}`
+      );
+      
+      if (success) {
+        toast.success("Background removed image downloaded!");
+      } else {
+        toast.error("Download failed. Please try again.");
+      }
     }
   };
 

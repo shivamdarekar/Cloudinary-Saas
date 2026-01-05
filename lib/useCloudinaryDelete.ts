@@ -27,7 +27,7 @@ export const useCloudinaryDelete = () => {
         return false;
       }
 
-      console.log('Deleting image with publicId:', publicId);
+      // console.log('Deleting image with publicId:', publicId);
 
       const response = await fetch('/api/delete-image', {
         method: 'DELETE',
@@ -40,13 +40,13 @@ export const useCloudinaryDelete = () => {
         throw new Error(error.error || 'Delete failed');
       }
 
-      console.log('✅ Image deleted successfully');
+      // console.log('Image deleted successfully');
       if (showToast) {
         toast.success('Image deleted successfully');
       }
       return true;
     } catch (error) {
-      console.error('Delete error:', error);
+      // console.error('Delete error:', error);
       if (showToast) {
         toast.error('Failed to delete image');
       }

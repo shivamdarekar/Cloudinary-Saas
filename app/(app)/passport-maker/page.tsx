@@ -5,6 +5,7 @@ import { CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import Dropdown from "../../../components/Dropdown";
+import { downloadImage } from "../../../lib/fileUtils";
 
 // Official document photo sizes (in pixels at 300 DPI)
 const PASSPORT_PRESETS = {
@@ -88,19 +89,19 @@ function PassportMaker() {
   const handleDownload = async () => {
     if (!processedImage) return;
     
-    try {
-      const response = await fetch(processedImage);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${selectedPreset}-photo-${file?.name}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+    if (!user) {
+      toast.error("Please sign in to download");
+      return;
+    }
+    
+    const success = await downloadImage(
+      processedImage,
+      `${selectedPreset}-photo-${file?.name}`
+    );
+    
+    if (success) {
       toast.success("Download completed!");
-    } catch (error) {
+    } else {
       toast.error("Download failed");
     }
   };
@@ -168,7 +169,10 @@ function PassportMaker() {
                 step="0.05"
                 value={zoomLevel}
                 onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                style={{
+                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(zoomLevel - 0.5) / 0.5 * 100}%, #e5e7eb ${(zoomLevel - 0.5) / 0.5 * 100}%, #e5e7eb 100%)`
+                }}
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
                 <span>Tight Crop</span>

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
-import { auth } from '@clerk/nextjs/server'
 import { checkRateLimit } from '../../../lib/ratelimit'
 
 cloudinary.config({
@@ -18,11 +17,6 @@ export async function POST(request: NextRequest) {
         { error: rateLimitResult.error },
         { status: 429 }
       )
-    }
-
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const formData = await request.formData()
@@ -64,7 +58,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Image optimization error:', error)
+    // console.error('Image optimization error:', error)
     return NextResponse.json(
       { error: 'Failed to optimize image' },
       { status: 500 }

@@ -110,7 +110,8 @@ export default function ProcessingResult({
       {/* Download Button */}
       <button
         onClick={onDownload}
-        className="btn-primary w-full flex items-center justify-center"
+        disabled={!user}
+        className={`btn-primary w-full flex items-center justify-center ${!user ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <Download className="w-4 h-4 mr-2" />
         Download Processed Image

@@ -60,9 +60,9 @@ export default function FormatConverter() {
       
       if (!response.ok) {
         const errorMessage = data.error || "Conversion failed";
-        console.error('Conversion error:', errorMessage);
+        // console.error('Conversion error:', errorMessage);
         if (data.details) {
-          console.error('Error details:', data.details);
+          // console.error('Error details:', data.details);
         }
         throw new Error(errorMessage);
       }
@@ -71,7 +71,7 @@ export default function FormatConverter() {
       setConvertedSize(data.size);
       toast.success(`Converted to ${targetFormat.toUpperCase()}!`);
     } catch (error: any) {
-      console.error('Format conversion error:', error);
+      // console.error('Format conversion error:', error);
       toast.error(error.message || "Conversion failed. Please try again.");
     } finally {
       setIsConverting(false);
@@ -85,36 +85,22 @@ export default function FormatConverter() {
     }
 
     try {
-      // Fetch the image as a blob to force download
-      const response = await fetch(convertedImage);
+      const success = await downloadImage(
+        convertedImage,
+        `converted-${file?.name?.split('.')[0] || 'image'}.${targetFormat}`
+      );
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      if (success) {
+        toast.success("Download completed!");
+        
+        // Only delete if download was successful
+        await deleteImage(convertedImage);
+        // console.log('🗑️ Converted image deleted from Cloudinary');
+      } else {
+        throw new Error('Download failed');
       }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `converted-${file?.name?.split('.')[0] || 'image'}.${targetFormat}`;
-      document.body.appendChild(link);
-      link.click();
-      
-      // Wait a moment to ensure download started
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Cleanup
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success("Download completed!");
-      
-      // Only delete if download was successful
-      await deleteImage(convertedImage);
-      console.log('🗑️ Converted image deleted from Cloudinary');
     } catch (error) {
-      console.error('Download error:', error);
+      // console.error('Download error:', error);
       // Don't delete if download failed - user can retry
       toast.error("Download failed. Click download to try again.");
     }

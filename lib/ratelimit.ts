@@ -1,22 +1,40 @@
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 
-// In-memory fallback for development
-class InMemoryRateLimiter {
-  private hits: Map<string, { count: number; resetAt: number }> = new Map();
-  private readonly limit = 10;
-  private readonly window = 10000; // 10 seconds
+// Define a common interface for rate limiting
+interface RateLimitResult {
+  success: boolean;
+}
 
-  async limit(identifier: string) {
+interface RateLimiter {
+  limit: (identifier: string) => Promise<RateLimitResult>;
+}
+
+// In-memory fallback for development
+class InMemoryRateLimiter implements RateLimiter {
+  private hits: Map<string, { count: number; resetAt: number }> = new Map();
+  private readonly maxRequests = 10;
+  private readonly windowMs = 10000; // 10 seconds
+
+  async limit(identifier: string): Promise<RateLimitResult> {
     const now = Date.now();
     const userHits = this.hits.get(identifier);
 
+    // Clean up old entries periodically
+    if (this.hits.size > 1000) {
+      for (const [key, value] of this.hits.entries()) {
+        if (now > value.resetAt) {
+          this.hits.delete(key);
+        }
+      }
+    }
+
     if (!userHits || now > userHits.resetAt) {
-      this.hits.set(identifier, { count: 1, resetAt: now + this.window });
+      this.hits.set(identifier, { count: 1, resetAt: now + this.windowMs });
       return { success: true };
     }
 
-    if (userHits.count >= this.limit) {
+    if (userHits.count >= this.maxRequests) {
       return { success: false };
     }
 
@@ -25,19 +43,39 @@ class InMemoryRateLimiter {
   }
 }
 
-let rateLimiter: Ratelimit | InMemoryRateLimiter;
+// Wrapper for Upstash Redis rate limiter
+class RedisRateLimiter implements RateLimiter {
+  private ratelimit: Ratelimit;
 
-export function getRateLimiter() {
-  if (rateLimiter) return rateLimiter;
-
-  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    rateLimiter = new Ratelimit({
+  constructor() {
+    this.ratelimit = new Ratelimit({
       redis: Redis.fromEnv(),
       limiter: Ratelimit.slidingWindow(10, "10 s"),
       analytics: true,
     });
-  } else {
-    console.warn("⚠️ Rate limiting using in-memory fallback");
+  }
+
+  async limit(identifier: string): Promise<RateLimitResult> {
+    const result = await this.ratelimit.limit(identifier);
+    return { success: result.success };
+  }
+}
+
+let rateLimiter: RateLimiter | null = null;
+
+export function getRateLimiter(): RateLimiter {
+  if (rateLimiter) return rateLimiter;
+
+  try {
+    if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+      rateLimiter = new RedisRateLimiter();
+      // console.log(" Rate limiting using Upstash Redis");
+    } else {
+      rateLimiter = new InMemoryRateLimiter();
+      // console.warn(" Rate limiting using in-memory fallback");
+    }
+  } catch (error) {
+    console.error("Failed to initialize Redis rate limiter, falling back to in-memory:", error);
     rateLimiter = new InMemoryRateLimiter();
   }
 
@@ -46,12 +84,19 @@ export function getRateLimiter() {
 
 // Reusable rate limit check
 export async function checkRateLimit(request: Request): Promise<{ success: boolean; error?: string }> {
-  const ip = (request.headers.get('x-forwarded-for') ?? '127.0.0.1').split(',')[0];
-  const { success } = await getRateLimiter().limit(ip);
-  
-  if (!success) {
-    return { success: false, error: 'Too many requests. Please try again later.' };
+  try {
+    const ip = (request.headers.get('x-forwarded-for') ?? '127.0.0.1').split(',')[0];
+    const limiter = getRateLimiter();
+    const result = await limiter.limit(ip);
+    
+    if (!result.success) {
+      return { success: false, error: 'Too many requests. Please try again later.' };
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error("Rate limit check failed:", error);
+    // On error, allow the request to proceed (fail open)
+    return { success: true };
   }
-  
-  return { success: true };
 }

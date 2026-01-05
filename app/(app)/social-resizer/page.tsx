@@ -5,6 +5,7 @@ import { Share2 } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import Dropdown from "../../../components/Dropdown";
+import { downloadImage } from "../../../lib/fileUtils";
 
 // Social media dimensions
 const SOCIAL_PRESETS = {
@@ -84,19 +85,19 @@ function SocialResizer() {
   const handleDownload = async () => {
     if (!processedImage) return;
     
-    try {
-      const response = await fetch(processedImage);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${selectedPreset}-${file?.name}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+    if (!user) {
+      toast.error("Please sign in to download");
+      return;
+    }
+    
+    const success = await downloadImage(
+      processedImage,
+      `${selectedPreset}-${file?.name}`
+    );
+    
+    if (success) {
       toast.success("Download completed!");
-    } catch (error) {
+    } else {
       toast.error("Download failed");
     }
   };

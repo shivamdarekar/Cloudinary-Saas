@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
-import { auth } from "@clerk/nextjs/server";
 import { checkRateLimit } from "../../../lib/ratelimit";
 
 cloudinary.config({
@@ -18,11 +17,6 @@ export async function POST(request: NextRequest) {
         { error: rateLimitResult.error },
         { status: 429 }
       );
-    }
-
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Validate Cloudinary configuration
@@ -82,7 +76,7 @@ export async function POST(request: NextRequest) {
         },
         (error, result) => {
           if (error) {
-            console.error("Cloudinary error:", error);
+            // console.error("Cloudinary error:", error);
             reject(error);
           } else {
             resolve(result);
@@ -101,7 +95,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error("Passport photo error:", error);
+    // console.error("Passport photo error:", error);
     return NextResponse.json(
       { error: "Processing failed" },
       { status: 500 }

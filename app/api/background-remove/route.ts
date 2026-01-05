@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
-import { auth } from '@clerk/nextjs/server'
 import { checkRateLimit } from '../../../lib/ratelimit'
 
 cloudinary.config({
@@ -20,11 +19,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     // Validate Cloudinary configuration
     if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ||
         !process.env.CLOUDINARY_API_KEY ||
@@ -40,6 +34,15 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    }
+
+    // Check file size limit (10MB for Cloudinary free tier)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File too large. Maximum size is 10MB. Your file is ${Math.round(file.size / 1024 / 1024)}MB.` },
+        { status: 400 }
+      );
     }
 
     const bytes = await file.arrayBuffer()
@@ -67,10 +70,19 @@ export async function POST(request: NextRequest) {
       publicId: (result as any).public_id
     })
 
-  } catch (error) {
-    console.error('Background removal error:', error)
+  } catch (error: any) {
+    // console.error('Background removal error:', error)
+    
+    // Handle specific Cloudinary errors
+    if (error.http_code === 400 && error.message?.includes('File size too large')) {
+      return NextResponse.json(
+        { error: 'File too large. Maximum size is 10MB for background removal.' },
+        { status: 400 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to remove background' },
+      { error: error.message || 'Failed to remove background' },
       { status: 500 }
     )
   }

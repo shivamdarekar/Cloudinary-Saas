@@ -46,36 +46,35 @@ export default function ImageUpload({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    console.log('📁 File selected:', selectedFile?.name || 'No file');
+    // console.log('File selected:', selectedFile?.name || 'No file');
     
     if (selectedFile) {
-      console.log('📊 File details:', {
-        name: selectedFile.name,
-        type: selectedFile.type,
-        size: selectedFile.size
-      });
+      // console.log('File details:', {
+      //   name: selectedFile.name,
+      //   type: selectedFile.type,
+      //   size: selectedFile.size
+      // });
       validateAndSelectFile(selectedFile);
     } else {
-      console.log('⚠️ No file selected from input');
+      // console.log('No file selected from input');
     }
     
     // IMPORTANT: Reset input to allow re-selecting the same file
     e.target.value = '';
   };
-  };
 
   const validateAndSelectFile = (selectedFile: File) => {
-    console.log('🔍 Starting validation for:', selectedFile.name);
-    console.log('📊 File details:', {
-      name: selectedFile.name,
-      type: selectedFile.type,
-      size: selectedFile.size,
-      lastModified: selectedFile.lastModified
-    });
+    // console.log('Starting validation for:', selectedFile.name);
+    // console.log('File details:', {
+    //   name: selectedFile.name,
+    //   type: selectedFile.type,
+    //   size: selectedFile.size,
+    //   lastModified: selectedFile.lastModified
+    // });
     
     // Check if file exists
     if (!selectedFile) {
-      console.error('❌ No file provided to validation');
+      // console.error('No file provided to validation');
       toast.error('No file selected');
       return;
     }
@@ -84,34 +83,34 @@ export default function ImageUpload({
     const isImage = selectedFile.type.startsWith('image/') || 
                     /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)$/i.test(selectedFile.name);
     
-    console.log('🖼️ Image type check:', { isImage, type: selectedFile.type });
+    // console.log('Image type check:', { isImage, type: selectedFile.type });
     
     if (!isImage) {
-      console.error('❌ Invalid file type:', selectedFile.type);
+      // console.error('Invalid file type:', selectedFile.type);
       toast.error('Please select a valid image file (JPG, PNG, WebP, GIF, HEIC)');
       return;
     }
 
     // Check file size
     const fileSizeMB = selectedFile.size / (1024 * 1024);
-    console.log('📏 File size:', fileSizeMB.toFixed(2), 'MB', 'Max allowed:', maxSize, 'MB');
-    
+    // console.log('File size:', fileSizeMB.toFixed(2), 'MB', 'Max allowed:', maxSize, 'MB');
+
     if (fileSizeMB > maxSize) {
-      console.error('❌ File too large:', fileSizeMB, 'MB');
+      // console.error('File too large:', fileSizeMB, 'MB');
       toast.error(`File size must be less than ${maxSize}MB`);
       return;
     }
 
     // All validations passed
-    console.log('✅ File validation passed successfully');
-    console.log('🔄 Calling onFileSelect callback');
+    // console.log('File validation passed successfully');
+    // console.log('Calling onFileSelect callback');
     
     try {
       onFileSelect(selectedFile);
       toast.success('Image selected successfully!');
-      console.log('✅ onFileSelect completed successfully');
+      // console.log('onFileSelect completed successfully');
     } catch (error) {
-      console.error('❌ Error in onFileSelect:', error);
+      // console.error('Error in onFileSelect:', error);
       toast.error('Failed to process the image');
     }
   };
@@ -125,7 +124,7 @@ export default function ImageUpload({
   };
 
   const handleButtonClick = () => {
-    console.log('Upload button clicked - triggering file input');
+    // console.log('Upload button clicked - triggering file input');
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
-import { auth } from "@clerk/nextjs/server";
 import { checkRateLimit } from "../../../lib/ratelimit";
 
 cloudinary.config({
@@ -28,12 +27,6 @@ export async function POST(request: NextRequest) {
         { error: rateLimitResult.error },
         { status: 429 }
       );
-    }
-
-    // Check authentication
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Validate Cloudinary config
@@ -95,66 +88,140 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate quality more aggressively based on target size
+    // Smart compression strategy - try to hit target size iteratively
     const compressionRatio = targetSizeBytes / originalSize;
-    let quality: number;
-    let width: number | undefined;
-    let height: number | undefined;
+    // console.log(`Target compression: ${originalSize} -> ${targetSizeBytes} (${Math.round(compressionRatio * 100)}%)`);
 
-    // More aggressive quality reduction
-    if (compressionRatio >= 0.85) {
-      quality = 80;
-    } else if (compressionRatio >= 0.7) {
-      quality = 65;
-    } else if (compressionRatio >= 0.5) {
-      quality = 50;
-    } else if (compressionRatio >= 0.3) {
-      quality = 35;
-    } else if (compressionRatio >= 0.2) {
-      quality = 25;
-    } else if (compressionRatio >= 0.1) {
-      quality = 15;
-    } else {
-      quality = 10;
-      // For very aggressive compression, also reduce dimensions
-      width = 800;
-      height = 600;
-    }
-
-    // Build transformation array
-    const transformations: any[] = [
-      { quality: quality },
-      { fetch_format: "auto" },
-      { flags: "lossy" }
-    ];
-
-    // Add resizing if needed for extreme compression
-    if (width && height) {
-      transformations.unshift({ width, height, crop: "limit" });
-    }
-
-    // Upload to Cloudinary with compression
-    const result = await new Promise<CloudinaryUploadResult>((resolve, reject) => {
+    // First upload to get original dimensions
+    const uploadResult = await new Promise<CloudinaryUploadResult>((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         {
           resource_type: "image",
           folder: "compressed-images",
-          transformation: transformations
         },
         (error, result) => {
-          if (error) {
-            console.error("Cloudinary upload error:", error);
-            reject(error);
-          } else {
-            resolve(result as CloudinaryUploadResult);
-          }
+          if (error) reject(error);
+          else resolve(result as CloudinaryUploadResult);
         }
       ).end(buffer);
     });
 
+    const originalWidth = uploadResult.width;
+    const originalHeight = uploadResult.height;
+    const publicId = uploadResult.public_id;
+
+    // Strategy: Try different quality levels and formats to hit target
+    let bestResult: CloudinaryUploadResult | null = null;
+    let bestDifference = Infinity;
+
+    // Quality levels to try (from high to low)
+    const qualityLevels = compressionRatio > 0.5 
+      ? [80, 70, 60, 50, 40] 
+      : [70, 60, 50, 40, 30, 20];
+
+    // Try WebP format first (better compression), then JPG
+    const formats = ['webp', 'jpg'];
+    
+    for (const format of formats) {
+      for (const quality of qualityLevels) {
+        try {
+          // Generate URL with transformation
+          const transformedUrl = cloudinary.url(publicId, {
+            quality: quality,
+            format: format,
+            flags: 'lossy',
+            fetch_format: 'auto',
+          });
+
+          // Fetch the transformed image to check size
+          const response = await fetch(transformedUrl);
+          const arrayBuffer = await response.arrayBuffer();
+          const transformedSize = arrayBuffer.byteLength;
+          const difference = Math.abs(transformedSize - targetSizeBytes);
+
+          // console.log(`Trying ${format} q:${quality} -> ${transformedSize} bytes (diff: ${difference})`);
+
+          // If this is the closest to target size, save it
+          if (difference < bestDifference && transformedSize <= targetSizeBytes * 1.15) {
+            bestDifference = difference;
+            bestResult = {
+              ...uploadResult,
+              secure_url: transformedUrl,
+              bytes: transformedSize,
+              format: format,
+            };
+
+            // If we're within 10% of target, that's good enough
+            if (transformedSize >= targetSizeBytes * 0.9 && transformedSize <= targetSizeBytes * 1.1) {
+              // console.log(`✅ Found optimal compression at ${format} q:${quality}`);
+              break;
+            }
+          }
+        } catch (err) {
+          // console.error(`Failed to test ${format} q:${quality}:`, err);
+        }
+      }
+      
+      // If we found a good match, no need to try other formats
+      if (bestResult && bestResult.bytes >= targetSizeBytes * 0.9) {
+        break;
+      }
+    }
+
+    // If still too large, try reducing dimensions
+    if (!bestResult || bestResult.bytes > targetSizeBytes * 1.2) {
+      // console.log('Trying dimension reduction...');
+      const scaleFactor = Math.sqrt(targetSizeBytes / originalSize);
+      const newWidth = Math.floor(originalWidth * scaleFactor);
+      const newHeight = Math.floor(originalHeight * scaleFactor);
+
+      for (const quality of [60, 50, 40, 30]) {
+        try {
+          const transformedUrl = cloudinary.url(publicId, {
+            quality: quality,
+            format: 'webp',
+            width: newWidth,
+            height: newHeight,
+            crop: 'limit',
+            flags: 'lossy',
+          });
+
+          const response = await fetch(transformedUrl);
+          const arrayBuffer = await response.arrayBuffer();
+          const transformedSize = arrayBuffer.byteLength;
+          const difference = Math.abs(transformedSize - targetSizeBytes);
+
+          // console.log(`Trying resized webp w:${newWidth} q:${quality} -> ${transformedSize} bytes`);
+
+          if (difference < bestDifference) {
+            bestDifference = difference;
+            bestResult = {
+              ...uploadResult,
+              secure_url: transformedUrl,
+              bytes: transformedSize,
+              format: 'webp',
+              width: newWidth,
+              height: newHeight,
+            };
+
+            if (transformedSize <= targetSizeBytes * 1.1) {
+              // console.log(`✅ Found optimal with resize at q:${quality}`);
+              break;
+            }
+          }
+        } catch (err) {
+          // console.error(`Failed to test resize q:${quality}:`, err);
+        }
+      }
+    }
+
+    const result = bestResult || uploadResult;
+
     // Calculate how close we got to target size
     const achievedRatio = Math.round((result.bytes / targetSizeBytes) * 100);
     const compressionPercentage = Math.round((1 - result.bytes / file.size) * 100);
+
+    // console.log(`Final result: ${result.bytes} bytes (target: ${targetSizeBytes}, ${achievedRatio}% of target)`);
 
     // Return compression results
     return NextResponse.json({
@@ -162,17 +229,19 @@ export async function POST(request: NextRequest) {
       originalSize: file.size,
       compressedSize: result.bytes,
       targetSize: targetSizeBytes,
-      publicId: result.public_id,
+      publicId: publicId,
       format: result.format,
       width: result.width,
       height: result.height,
       compressionRatio: compressionPercentage,
       targetAchieved: achievedRatio,
-      quality: quality
+      message: achievedRatio >= 90 && achievedRatio <= 110 
+        ? 'Successfully compressed to target size' 
+        : `Compressed to ${achievedRatio}% of target size`
     }, { status: 200 });
 
   } catch (error: any) {
-    console.error("Image compression error:", error);
+    // console.error("Image compression error:", error);
     return NextResponse.json(
       { error: error.message || "Compression failed" },
       { status: 500 }

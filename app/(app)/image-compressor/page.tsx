@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import ProcessingResult from "../../../components/ProcessingResult";
 import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
+import { downloadImage } from "../../../lib/fileUtils";
 
 function ImageCompressor() {
   const { user } = useUser();
@@ -68,30 +69,22 @@ function ImageCompressor() {
           throw new Error(`Failed to fetch image: ${response.statusText}`);
         }
         
-        const blob = await response.blob();
+        const success = await downloadImage(
+          processedImage,
+          `compressed-${file?.name || 'image.jpg'}`
+        );
         
-        // Create a download link
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `compressed-${file?.name || 'image.jpg'}`;
-        document.body.appendChild(link);
-        link.click();
-        
-        // Wait a moment to ensure download started
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Clean up
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        toast.success("Download completed successfully!");
+        if (success) {
+          toast.success("Download completed successfully!");
+        } else {
+          throw new Error('Download failed');
+        }
         
         // ✅ Only delete if download was successful
         await deleteImage(processedImage);
-        console.log('🗑️ Compressed image deleted from Cloudinary');
+        // console.log('🗑️ Compressed image deleted from Cloudinary');
       } catch (error) {
-        console.error('Download failed:', error);
+        // console.error('Download failed:', error);
         // ❌ Don't delete if download failed - user can retry
         toast.error("Download failed. Click download to try again.");
       }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
-import { auth } from "@clerk/nextjs/server";
 import { checkRateLimit } from "../../../lib/ratelimit";
+import { extractFileFormat } from "../../../lib/fileUtils";
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -24,16 +24,11 @@ export async function POST(request: NextRequest) {
     if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 
         !process.env.CLOUDINARY_API_KEY || 
         !process.env.CLOUDINARY_API_SECRET) {
-      console.error('Cloudinary environment variables are not configured');
+      // console.error('Cloudinary environment variables are not configured');
       return NextResponse.json(
         { error: 'Cloudinary is not configured. Please set up your environment variables.' },
         { status: 500 }
       );
-    }
-
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const formData = await request.formData();
@@ -45,9 +40,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    console.log('Converting file:', file.name, 'to', targetFormat);
-    console.log('File type:', file.type);
-    console.log('File size:', file.size);
+    // console.log('Converting file:', file.name, 'to', targetFormat);
+    // console.log('File type:', file.type);
+    // console.log('File size:', file.size);
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
@@ -64,10 +59,10 @@ export async function POST(request: NextRequest) {
         },
         (error, result) => {
           if (error) {
-            console.error('Cloudinary upload error:', error);
+            // console.error('Cloudinary upload error:', error);
             reject(error);
           } else {
-            console.log('Cloudinary upload success:', result?.public_id);
+            // console.log('Cloudinary upload success:', result?.public_id);
             resolve(result);
           }
         }
@@ -77,13 +72,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Extract original format safely
-    let originalFormat = "unknown";
-    if (file.type && file.type.includes('/')) {
-      originalFormat = file.type.split('/')[1] || "unknown";
-    } else if (file.name) {
-      const ext = file.name.split('.').pop();
-      originalFormat = ext || "unknown";
-    }
+    const originalFormat = extractFileFormat(file).toLowerCase();
 
     return NextResponse.json({
       url: (result as any).secure_url,
@@ -94,8 +83,8 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error("Format conversion error:", error);
-    console.error("Error details:", JSON.stringify(error, null, 2));
+    // console.error("Format conversion error:", error);
+    // console.error("Error details:", JSON.stringify(error, null, 2));
     
     const errorMessage = error?.message || error?.error?.message || "Conversion failed";
     

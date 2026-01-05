@@ -5,37 +5,47 @@ const isPublicRoute = createRouteMatcher([
     "/sign-in",
     "/sign-up",
     "/",
-    "/home"
-])
-const isPublicApiRoute = createRouteMatcher([
-    "/api/videos"
+    "/home",
+    // Allow access to all processing pages without auth
+    "/image-compressor",
+    "/background-remover", 
+    "/image-optimizer",
+    "/social-resizer",
+    "/passport-maker",
+    "/format-converter"
 ])
 
+const isPublicApiRoute = createRouteMatcher([
+    // Allow image processing APIs without auth (rate limited)
+    "/api/image-compress",
+    "/api/background-remove",
+    "/api/image-optimize",
+    "/api/social-resize",
+    "/api/passport-resize",
+    "/api/format-convert"
+])
 
 export default clerkMiddleware(async (auth, req) => {
     const {userId} = await auth();
     const currentUrl = new URL(req.url)
-     const isAccessingDashboard = currentUrl.pathname === "/home"
-     const isApiRequest = currentUrl.pathname.startsWith("/api")
+    const isAccessingDashboard = currentUrl.pathname === "/home"
 
-     // If user is logged in and accessing a public route but not the dashboard
-    if(userId && isPublicRoute(req) && !isAccessingDashboard) {
+    // If user is logged in and accessing sign-in/sign-up, redirect to home
+    if(userId && (currentUrl.pathname === "/sign-in" || currentUrl.pathname === "/sign-up")) {
         return NextResponse.redirect(new URL("/home", req.url))
     }
-    //not logged in
-    if(!userId){
-        // If user is not logged in and trying to access a protected route
-        if(!isPublicRoute(req) && !isPublicApiRoute(req) ){
-            return NextResponse.redirect(new URL("/sign-in", req.url))
-        }
-
-        // If the request is for a protected API and the user is not logged in
-        if(isApiRequest && !isPublicApiRoute(req)){
-            return NextResponse.redirect(new URL("/sign-in", req.url))
-        }
+    
+    // Allow public routes without authentication
+    if(isPublicRoute(req) || isPublicApiRoute(req)){
+        return NextResponse.next()
     }
-    return NextResponse.next()
+    
+    // If user is not logged in and trying to access a protected route
+    if(!userId && !isPublicRoute(req)){
+        return NextResponse.redirect(new URL("/sign-in", req.url))
+    }
 
+    return NextResponse.next()
 })
 
 export const config = {
