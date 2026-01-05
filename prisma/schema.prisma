@@ -13,16 +13,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Video{
+model Image {
   id              String @id @default(cuid())
-  title           String
-  description     String?
+  title           String?
   publicId        String
-  originalSize    String
-  compressedSize  String
-  duration        Float
+  originalSize    Int
+  compressedSize  Int?
+  format          String
+  width           Int?
+  height          Int?
+  processType     String // 'compress', 'background-remove', 'optimize', 'auto-tag'
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  userId          String 
-
+  userId          String
 }
