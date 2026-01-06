@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { RefreshCw, Download } from "lucide-react";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import ImageUpload from "../../../components/ImageUpload";
 import Dropdown from "../../../components/Dropdown";
 import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 import { downloadImage, extractFileFormat } from "../../../lib/fileUtils";
+import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
 
 const FORMAT_OPTIONS = [
   { value: "jpg", label: "JPG", description: "Best for photos" },
@@ -25,7 +26,7 @@ const QUALITY_OPTIONS = [
 ];
 
 export default function FormatConverter() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const { deleteImage } = useCloudinaryDelete();
   const [file, setFile] = useState<File | null>(null);
   const [targetFormat, setTargetFormat] = useState("webp");
@@ -34,6 +35,19 @@ export default function FormatConverter() {
   const [convertedImage, setConvertedImage] = useState<string | null>(null);
   const [originalFormat, setOriginalFormat] = useState<string>("");
   const [convertedSize, setConvertedSize] = useState<number>(0);
+
+  // Restore processing state after authentication
+  useEffect(() => {
+    if (isLoaded && user) {
+      const savedState = getProcessingState();
+      if (savedState && savedState.processingType === 'format-convert') {
+        setConvertedImage(savedState.processedImage);
+        setConvertedSize(savedState.compressedSize);
+        toast.success('Your converted image has been restored!');
+        clearProcessingState();
+      }
+    }
+  }, [isLoaded, user]);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -69,6 +83,17 @@ export default function FormatConverter() {
       
       setConvertedImage(data.url);
       setConvertedSize(data.size);
+      
+      // Save processing state for potential authentication flow
+      if (!user) {
+        saveProcessingState({
+          processedImage: data.url,
+          originalSize: file.size,
+          compressedSize: data.size,
+          fileName: file.name,
+          processingType: 'format-convert'
+        });
+      }
       toast.success(`Converted to ${targetFormat.toUpperCase()}!`);
     } catch (error: any) {
       // console.error('Format conversion error:', error);
@@ -79,31 +104,76 @@ export default function FormatConverter() {
   };
 
   const handleDownload = async () => {
-    if (!convertedImage || !user) {
+    if (!user) {
+      // Save state before redirecting
+      if (convertedImage && file) {
+        saveProcessingState({
+          processedImage: convertedImage,
+          originalSize: file.size,
+          compressedSize: convertedSize,
+          fileName: file.name,
+          processingType: 'format-convert'
+        });
+      }
       toast.error("Please sign in to download");
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
 
-    try {
-      const success = await downloadImage(
-        convertedImage,
-        `converted-${file?.name?.split('.')[0] || 'image'}.${targetFormat}`
-      );
-      
-      if (success) {
-        toast.success("Download completed!");
+    if (!convertedImage) return;
+
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const attemptDownload = async (): Promise<boolean> => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
         
-        // Only delete if download was successful
-        await deleteImage(convertedImage);
-        // console.log('🗑️ Converted image deleted from Cloudinary');
-      } else {
-        throw new Error('Download failed');
+        const response = await fetch(convertedImage, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const success = await downloadImage(
+          convertedImage,
+          `converted-${file?.name?.split('.')[0] || 'image'}.${targetFormat}`
+        );
+        
+        if (success) {
+          toast.success("Download completed!");
+          clearProcessingState();
+          await deleteImage(convertedImage);
+          return true;
+        } else {
+          throw new Error('Download failed');
+        }
+      } catch (error: any) {
+        const isRetryable = 
+          error.name === 'AbortError' || 
+          error.name === 'TypeError' || 
+          error.message?.includes('Failed to fetch') ||
+          error.message?.includes('Network') ||
+          (error.message?.includes('HTTP') && /5\d{2}/.test(error.message));
+        
+        if (retryCount < maxRetries && isRetryable) {
+          retryCount++;
+          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+          return attemptDownload();
+        } else {
+          toast.error("Download failed. Click download to try again.");
+          return false;
+        }
       }
-    } catch (error) {
-      // console.error('Download error:', error);
-      // Don't delete if download failed - user can retry
-      toast.error("Download failed. Click download to try again.");
-    }
+    };
+
+    await attemptDownload();
   };
 
   return (

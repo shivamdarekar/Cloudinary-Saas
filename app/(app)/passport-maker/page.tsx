@@ -1,11 +1,13 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import Dropdown from "../../../components/Dropdown";
 import { downloadImage } from "../../../lib/fileUtils";
+import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
+import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
 
 // Official document photo sizes (in pixels at 300 DPI)
 const PASSPORT_PRESETS = {
@@ -26,14 +28,27 @@ const passportOptions = Object.entries(PASSPORT_PRESETS).map(([key, preset]) => 
 }));
 
 function PassportMaker() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
+  const { deleteImage } = useCloudinaryDelete();
   const [file, setFile] = useState<File | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<string>("passport-india");
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [backgroundColor, setBackgroundColor] = useState<string>("white");
-  const [zoomLevel, setZoomLevel] = useState<number>(0.75); // 0.75 = includes shoulders
+  const [zoomLevel, setZoomLevel] = useState<number>(0.75);
+
+  // Restore processing state after authentication
+  useEffect(() => {
+    if (isLoaded && user) {
+      const savedState = getProcessingState();
+      if (savedState && savedState.processingType === 'passport-maker') {
+        setProcessedImage(savedState.processedImage);
+        toast.success('Your passport photo has been restored!');
+        clearProcessingState();
+      }
+    }
+  }, [isLoaded, user]);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -78,6 +93,18 @@ function PassportMaker() {
       
       const data = await response.json();
       setProcessedImage(data.url);
+      
+      // Save processing state for potential authentication flow
+      if (!user) {
+        saveProcessingState({
+          processedImage: data.url,
+          originalSize: file.size,
+          compressedSize: file.size, // Estimate same size
+          fileName: file.name,
+          processingType: 'passport-maker'
+        });
+      }
+      
       toast.success("Passport photo created successfully!");
     } catch (error: any) {
       toast.error("Processing failed. Please try again.");
@@ -87,23 +114,76 @@ function PassportMaker() {
   };
 
   const handleDownload = async () => {
-    if (!processedImage) return;
-    
     if (!user) {
+      // Save state before redirecting
+      if (processedImage && file) {
+        saveProcessingState({
+          processedImage,
+          originalSize: file.size,
+          compressedSize: file.size,
+          fileName: file.name,
+          processingType: 'passport-maker'
+        });
+      }
       toast.error("Please sign in to download");
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
     
-    const success = await downloadImage(
-      processedImage,
-      `${selectedPreset}-photo-${file?.name}`
-    );
+    if (!processedImage) return;
     
-    if (success) {
-      toast.success("Download completed!");
-    } else {
-      toast.error("Download failed");
-    }
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const attemptDownload = async (): Promise<boolean> => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
+        const response = await fetch(processedImage, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const success = await downloadImage(
+          processedImage,
+          `${selectedPreset}-photo-${file?.name}`
+        );
+        
+        if (success) {
+          toast.success("Download completed!");
+          clearProcessingState();
+          await deleteImage(processedImage);
+          return true;
+        } else {
+          throw new Error('Download failed');
+        }
+      } catch (error: any) {
+        const isRetryable = 
+          error.name === 'AbortError' || 
+          error.name === 'TypeError' || 
+          error.message?.includes('Failed to fetch') ||
+          error.message?.includes('Network') ||
+          (error.message?.includes('HTTP') && /5\d{2}/.test(error.message));
+        
+        if (retryCount < maxRetries && isRetryable) {
+          retryCount++;
+          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+          return attemptDownload();
+        } else {
+          toast.error("Download failed. Please try again.");
+          return false;
+        }
+      }
+    };
+
+    await attemptDownload();
   };
 
   const currentPreset = PASSPORT_PRESETS[selectedPreset as keyof typeof PASSPORT_PRESETS];

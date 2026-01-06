@@ -30,7 +30,17 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData()
-    const file = formData.get('file') as File
+    const files = formData.getAll('file')
+    
+    // Check for multiple files
+    if (files.length > 1) {
+      return NextResponse.json(
+        { error: 'Please upload only one image at a time' },
+        { status: 400 }
+      )
+    }
+    
+    const file = files[0] as File
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Zap } from "lucide-react";
 import axios from "axios";
@@ -8,9 +8,10 @@ import ImageUpload from "../../../components/ImageUpload";
 import ProcessingResult from "../../../components/ProcessingResult";
 import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 import { downloadImage } from "../../../lib/fileUtils";
+import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
 
 function ImageCompressor() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const { deleteImage } = useCloudinaryDelete();
   const [file, setFile] = useState<File | null>(null);
   const [targetSize, setTargetSize] = useState<number>(100);
@@ -18,12 +19,47 @@ function ImageCompressor() {
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [originalSize, setOriginalSize] = useState<number>(0);
   const [compressedSize, setCompressedSize] = useState<number>(0);
+  const [originalPublicId, setOriginalPublicId] = useState<string | null>(null);
+
+  // Restore processing state after authentication
+  useEffect(() => {
+    if (isLoaded && user) {
+      const savedState = getProcessingState();
+      if (savedState && savedState.processingType === 'compress') {
+        setProcessedImage(savedState.processedImage);
+        setOriginalSize(savedState.originalSize);
+        setCompressedSize(savedState.compressedSize);
+        if (savedState.targetSize) {
+          setTargetSize(savedState.targetSize);
+        }
+        toast.success('Your processed image has been restored!');
+        // Clear the saved state after restoration
+        clearProcessingState();
+      }
+    }
+  }, [isLoaded, user]);
+
+  // Prevent page refresh during processing
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isProcessing) {
+        e.preventDefault();
+        e.returnValue = 'Processing in progress. Are you sure you want to leave?';
+        return 'Processing in progress. Are you sure you want to leave?';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isProcessing]);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
     setOriginalSize(selectedFile.size);
     setProcessedImage(null);
     setCompressedSize(0);
+    // Clear any previous processing state when starting new
+    clearProcessingState();
   };
 
   const handleRemoveFile = () => {
@@ -35,19 +71,73 @@ function ImageCompressor() {
 
   const handleCompress = async () => {
     if (!file) return;
+    if (isProcessing) return; // Prevent double processing
+
+    // Validate target size
+    const targetSizeBytes = targetSize * 1024;
+    const minTargetSize = Math.max(1, Math.floor(file.size * 0.01)); // At least 1% of original
+    
+    if (targetSizeBytes >= file.size) {
+      toast.error('Target size must be smaller than original file size');
+      return;
+    }
+    
+    if (targetSizeBytes < minTargetSize) {
+      toast.error(`Target size too small. Minimum: ${Math.ceil(minTargetSize / 1024)}KB`);
+      return;
+    }
 
     setIsProcessing(true);
     const formData = new FormData();
     formData.append("file", file);
     formData.append("targetSize", targetSize.toString());
 
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const attemptCompress = async (): Promise<void> => {
+      try {
+        const response = await axios.post("/api/image-compress", formData, {
+          timeout: 30000 // 30 second timeout
+        });
+        setProcessedImage(response.data.url);
+        setCompressedSize(response.data.compressedSize);
+        setOriginalPublicId(response.data.publicId); // Store original image publicId
+        
+        // Save processing state for potential authentication flow
+        if (!user) {
+          saveProcessingState({
+            processedImage: response.data.url,
+            originalSize: originalSize,
+            compressedSize: response.data.compressedSize,
+            fileName: file.name,
+            targetSize: targetSize,
+            processingType: 'compress'
+          });
+        }
+        
+        toast.success("Image compressed successfully!");
+      } catch (error: any) {
+        const isRetryable = error.code === 'ECONNABORTED' || 
+                           error.code === 'NETWORK_ERROR' || 
+                           error.response?.status >= 500;
+        
+        if (retryCount < maxRetries && isRetryable) {
+          retryCount++;
+          toast.error(`Network error. Retrying... (${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+          return attemptCompress();
+        } else {
+          toast.error(error.response?.data?.error || "Compression failed");
+          throw error;
+        }
+      }
+    };
+
     try {
-      const response = await axios.post("/api/image-compress", formData);
-      setProcessedImage(response.data.url);
-      setCompressedSize(response.data.compressedSize);
-      toast.success("Image compressed successfully!");
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || "Compression failed");
+      await attemptCompress();
+    } catch (error) {
+      // Error already shown
     } finally {
       setIsProcessing(false);
     }
@@ -55,15 +145,37 @@ function ImageCompressor() {
 
   const handleDownload = async () => {
     if (!user) {
+      // Save state before redirecting
+      if (processedImage && file) {
+        saveProcessingState({
+          processedImage,
+          originalSize,
+          compressedSize,
+          fileName: file.name,
+          targetSize,
+          processingType: 'compress'
+        });
+      }
       toast.error("Please sign in to download");
-      window.location.href = "/sign-in";
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
     
-    if (processedImage) {
+    if (!processedImage) return;
+
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const attemptDownload = async (): Promise<boolean> => {
       try {
-        // Fetch the image as a blob
-        const response = await fetch(processedImage);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
+        const response = await fetch(processedImage, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -76,19 +188,37 @@ function ImageCompressor() {
         
         if (success) {
           toast.success("Download completed successfully!");
+          clearProcessingState();
+          // Delete both original and compressed images from Cloudinary
+          if (originalPublicId) {
+            await deleteImage(originalPublicId);
+          }
+          await deleteImage(processedImage);
+          return true;
         } else {
           throw new Error('Download failed');
         }
+      } catch (error: any) {
+        const isRetryable = 
+          error.name === 'AbortError' || 
+          error.name === 'TypeError' || 
+          error.message?.includes('Failed to fetch') ||
+          error.message?.includes('Network') ||
+          (error.message?.includes('HTTP') && /5\d{2}/.test(error.message));
         
-        // ✅ Only delete if download was successful
-        await deleteImage(processedImage);
-        // console.log('🗑️ Compressed image deleted from Cloudinary');
-      } catch (error) {
-        // console.error('Download failed:', error);
-        // ❌ Don't delete if download failed - user can retry
-        toast.error("Download failed. Click download to try again.");
+        if (retryCount < maxRetries && isRetryable) {
+          retryCount++;
+          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+          return attemptDownload();
+        } else {
+          toast.error("Download failed. Click download to try again.");
+          return false;
+        }
       }
-    }
+    };
+
+    await attemptDownload();
   };
 
   return (

@@ -30,7 +30,17 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const file = formData.get("file") as File;
+    const files = formData.getAll("file");
+    
+    // Check for multiple files
+    if (files.length > 1) {
+      return NextResponse.json(
+        { error: "Please upload only one image at a time" },
+        { status: 400 }
+      );
+    }
+    
+    const file = files[0] as File;
     const width = parseInt(formData.get("width") as string);
     const height = parseInt(formData.get("height") as string);
     const preset = formData.get("preset") as string;
@@ -38,6 +48,15 @@ export async function POST(request: NextRequest) {
 
     if (!file || !width || !height) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // Check file size limit (10MB)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File too large. Maximum size is 10MB. Your file is ${Math.round(file.size / 1024 / 1024)}MB.` },
+        { status: 400 }
+      );
     }
 
     const bytes = await file.arrayBuffer();

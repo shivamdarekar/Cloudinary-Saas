@@ -30,8 +30,13 @@ export default clerkMiddleware(async (auth, req) => {
     const currentUrl = new URL(req.url)
     const isAccessingDashboard = currentUrl.pathname === "/home"
 
-    // If user is logged in and accessing sign-in/sign-up, redirect to home
+    // If user is logged in and accessing sign-in/sign-up, redirect intelligently
     if(userId && (currentUrl.pathname === "/sign-in" || currentUrl.pathname === "/sign-up")) {
+        // Check if there's a redirect URL in the query params
+        const redirectTo = currentUrl.searchParams.get('redirect_url');
+        if (redirectTo && isPublicRoute({url: redirectTo} as any)) {
+            return NextResponse.redirect(new URL(redirectTo, req.url));
+        }
         return NextResponse.redirect(new URL("/home", req.url))
     }
     

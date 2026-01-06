@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { ImageIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -7,9 +7,10 @@ import ImageUpload from "../../../components/ImageUpload";
 import ProcessingResult from "../../../components/ProcessingResult";
 import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 import { downloadImage } from "../../../lib/fileUtils";
+import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
 
 function ImageOptimizer() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const { deleteImage } = useCloudinaryDelete();
   const [file, setFile] = useState<File | null>(null);
   const [quality, setQuality] = useState<number>(80);
@@ -19,6 +20,20 @@ function ImageOptimizer() {
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [originalSize, setOriginalSize] = useState<number>(0);
   const [optimizedSize, setOptimizedSize] = useState<number>(0);
+
+  // Restore processing state after authentication
+  useEffect(() => {
+    if (isLoaded && user) {
+      const savedState = getProcessingState();
+      if (savedState && savedState.processingType === 'optimize') {
+        setProcessedImage(savedState.processedImage);
+        setOriginalSize(savedState.originalSize);
+        setOptimizedSize(savedState.compressedSize);
+        toast.success('Your processed image has been restored!');
+        clearProcessingState();
+      }
+    }
+  }, [isLoaded, user]);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -61,7 +76,20 @@ function ImageOptimizer() {
       const data = await response.json();
       setProcessedImage(data.optimizedUrl);
       // Optimized images are typically smaller
-      setOptimizedSize(Math.floor(originalSize * (quality / 100) * 0.7));
+      const calculatedSize = Math.floor(originalSize * (quality / 100) * 0.7);
+      setOptimizedSize(calculatedSize);
+      
+      // Save processing state for potential authentication flow
+      if (!user) {
+        saveProcessingState({
+          processedImage: data.optimizedUrl,
+          originalSize: originalSize,
+          compressedSize: calculatedSize,
+          fileName: file.name,
+          processingType: 'optimize'
+        });
+      }
+      
       toast.success("Image optimized successfully!");
     } catch (error: any) {
       // console.error("Image optimization error:", error);
@@ -73,35 +101,74 @@ function ImageOptimizer() {
 
   const handleDownload = async () => {
     if (!user) {
+      // Save state before redirecting
+      if (processedImage && file) {
+        saveProcessingState({
+          processedImage,
+          originalSize,
+          compressedSize: optimizedSize,
+          fileName: file.name,
+          processingType: 'optimize'
+        });
+      }
       toast.error("Please sign in to download");
-      window.location.href = "/sign-in";
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
     
     if (processedImage) {
-      try {
-        // Fetch as blob to force download
-        const response = await fetch(processedImage);
-        
-        const success = await downloadImage(
-          processedImage,
-          `optimized-${file?.name || 'image.jpg'}`
-        );
-        
-        if (success) {
-          toast.success("Optimized image downloaded successfully!");
-        } else {
-          throw new Error('Download failed');
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      const attemptDownload = async (): Promise<boolean> => {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+          
+          const response = await fetch(processedImage, {
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
+          const success = await downloadImage(
+            processedImage,
+            `optimized-${file?.name || 'image.jpg'}`
+          );
+          
+          if (success) {
+            toast.success("Optimized image downloaded successfully!");
+            clearProcessingState();
+            await deleteImage(processedImage);
+            return true;
+          } else {
+            throw new Error('Download failed');
+          }
+        } catch (error: any) {
+          const isRetryable = 
+            error.name === 'AbortError' || 
+            error.name === 'TypeError' || 
+            error.message?.includes('Failed to fetch') ||
+            error.message?.includes('Network') ||
+            (error.message?.includes('HTTP') && /5\d{2}/.test(error.message));
+          
+          if (retryCount < maxRetries && isRetryable) {
+            retryCount++;
+            toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+            return attemptDownload();
+          } else {
+            toast.error("Download failed. Click download to try again.");
+            return false;
+          }
         }
-        
-        // Only delete if download was successful
-        await deleteImage(processedImage);
-        // console.log('Optimized image deleted from Cloudinary');
-      } catch (error) {
-        // console.error('Download error:', error);
-        // Don't delete if download failed - user can retry
-        toast.error("Download failed. Click download to try again.");
-      }
+      };
+
+      await attemptDownload();
     }
   };
 

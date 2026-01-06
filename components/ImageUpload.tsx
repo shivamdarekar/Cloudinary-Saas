@@ -39,13 +39,24 @@ export default function ImageUpload({
     setDragActive(false);
     
     const files = e.dataTransfer.files;
+    if (files && files.length > 1) {
+      toast.error('Please upload only one image at a time');
+      return;
+    }
     if (files && files[0]) {
       validateAndSelectFile(files[0]);
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
+    const files = e.target.files;
+    if (files && files.length > 1) {
+      toast.error('Please select only one image at a time');
+      e.target.value = '';
+      return;
+    }
+    
+    const selectedFile = files?.[0];
     // console.log('File selected:', selectedFile?.name || 'No file');
     
     if (selectedFile) {
@@ -65,54 +76,57 @@ export default function ImageUpload({
 
   const validateAndSelectFile = (selectedFile: File) => {
     // console.log('Starting validation for:', selectedFile.name);
-    // console.log('File details:', {
-    //   name: selectedFile.name,
-    //   type: selectedFile.type,
-    //   size: selectedFile.size,
-    //   lastModified: selectedFile.lastModified
-    // });
     
     // Check if file exists
     if (!selectedFile) {
-      // console.error('No file provided to validation');
       toast.error('No file selected');
       return;
     }
 
-    // Check file type - support HEIC from iPhone
+    // Enhanced file validation
     const isImage = selectedFile.type.startsWith('image/') || 
                     /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)$/i.test(selectedFile.name);
     
-    // console.log('Image type check:', { isImage, type: selectedFile.type });
-    
     if (!isImage) {
-      // console.error('Invalid file type:', selectedFile.type);
       toast.error('Please select a valid image file (JPG, PNG, WebP, GIF, HEIC)');
+      return;
+    }
+
+    // Check for corrupted files - basic validation
+    if (selectedFile.size === 0) {
+      toast.error('File appears to be corrupted or empty');
       return;
     }
 
     // Check file size
     const fileSizeMB = selectedFile.size / (1024 * 1024);
-    // console.log('File size:', fileSizeMB.toFixed(2), 'MB', 'Max allowed:', maxSize, 'MB');
-
     if (fileSizeMB > maxSize) {
-      // console.error('File too large:', fileSizeMB, 'MB');
       toast.error(`File size must be less than ${maxSize}MB`);
       return;
     }
 
-    // All validations passed
-    // console.log('File validation passed successfully');
-    // console.log('Calling onFileSelect callback');
-    
-    try {
-      onFileSelect(selectedFile);
-      toast.success('Image selected successfully!');
-      // console.log('onFileSelect completed successfully');
-    } catch (error) {
-      // console.error('Error in onFileSelect:', error);
-      toast.error('Failed to process the image');
-    }
+    // Additional validation for image integrity
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // File is valid image
+        try {
+          onFileSelect(selectedFile);
+          toast.success('Image selected successfully!');
+        } catch (error) {
+          toast.error('Failed to process the image');
+        }
+      };
+      img.onerror = () => {
+        toast.error('File appears to be corrupted or not a valid image');
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => {
+      toast.error('Unable to read file. It may be corrupted');
+    };
+    reader.readAsDataURL(selectedFile);
   };
 
   const formatFileSize = (bytes: number) => {

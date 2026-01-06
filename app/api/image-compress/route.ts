@@ -42,7 +42,17 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const file = formData.get("file") as File;
+    const files = formData.getAll("file");
+    
+    // Check for multiple files
+    if (files.length > 1) {
+      return NextResponse.json(
+        { error: "Please upload only one image at a time" },
+        { status: 400 }
+      );
+    }
+    
+    const file = files[0] as File;
     const targetSizeKB = parseInt(formData.get("targetSize") as string);
 
     // Validate input
@@ -50,8 +60,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
+    // Enhanced target size validation
     if (!targetSizeKB || targetSizeKB <= 0) {
       return NextResponse.json({ error: "Invalid target size" }, { status: 400 });
+    }
+
+    const targetSizeBytes = targetSizeKB * 1024;
+    const originalSize = file.size;
+    const minTargetSize = Math.max(1024, Math.floor(originalSize * 0.01)); // At least 1KB or 1% of original
+    const maxTargetSize = Math.floor(originalSize * 0.95); // At most 95% of original
+
+    // Check if target size is achievable
+    if (targetSizeBytes >= originalSize) {
+      return NextResponse.json(
+        { error: "Target size must be smaller than original file size" },
+        { status: 400 }
+      );
+    }
+
+    if (targetSizeBytes < minTargetSize) {
+      return NextResponse.json(
+        { error: `Target size too small. Minimum: ${Math.ceil(minTargetSize / 1024)}KB` },
+        { status: 400 }
+      );
+    }
+
+    if (targetSizeBytes > maxTargetSize) {
+      return NextResponse.json(
+        { error: `Target size too close to original. Maximum: ${Math.floor(maxTargetSize / 1024)}KB` },
+        { status: 400 }
+      );
     }
 
     // Check file type - include HEIC for iPhone compatibility
@@ -79,14 +117,6 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     const targetSizeBytes = targetSizeKB * 1024;
     const originalSize = file.size;
-
-    // Check if target size is smaller than original
-    if (targetSizeBytes >= originalSize) {
-      return NextResponse.json(
-        { error: "Target size must be smaller than original file size" },
-        { status: 400 }
-      );
-    }
 
     // Smart compression strategy - try to hit target size iteratively
     const compressionRatio = targetSizeBytes / originalSize;

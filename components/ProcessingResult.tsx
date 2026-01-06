@@ -1,5 +1,5 @@
 "use client";
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Download, AlertCircle } from 'lucide-react';
 
 interface ProcessingResultProps {
@@ -25,6 +25,12 @@ export default function ProcessingResult({
   showStats = true,
   children
 }: ProcessingResultProps) {
+  const [currentPath, setCurrentPath] = useState('');
+
+  useEffect(() => {
+    setCurrentPath(window.location.pathname);
+  }, []);
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -96,26 +102,40 @@ export default function ProcessingResult({
       {/* Custom content */}
       {children}
 
-      {/* Sign-in Warning */}
-      {!user && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-3">
-          <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-          <div>
-            <p className="text-yellow-800 font-medium">Sign in required</p>
-            <p className="text-yellow-700 text-sm">Please sign in to download your processed image</p>
+      {/* Authentication or Download Section */}
+      {!user ? (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 text-center">
+            Sign in required to download your processed image
+          </p>
+          
+          <button
+            onClick={() => window.location.href = `/sign-in?redirect_url=${encodeURIComponent(currentPath)}`}
+            className="btn-primary w-full flex items-center justify-center"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Sign In to Download
+          </button>
+          
+          <div className="text-center">
+            <span className="text-sm text-gray-500">Don't have an account? </span>
+            <a
+              href={`/sign-up?redirect_url=${encodeURIComponent(currentPath)}`}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Sign up
+            </a>
           </div>
         </div>
+      ) : (
+        <button
+          onClick={onDownload}
+          className="btn-primary w-full flex items-center justify-center"
+        >
+          <Download className="w-4 h-4 mr-2" />
+          Download Processed Image
+        </button>
       )}
-
-      {/* Download Button */}
-      <button
-        onClick={onDownload}
-        disabled={!user}
-        className={`btn-primary w-full flex items-center justify-center ${!user ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        <Download className="w-4 h-4 mr-2" />
-        Download Processed Image
-      </button>
     </div>
   );
 }

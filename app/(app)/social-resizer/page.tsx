@@ -1,11 +1,13 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Share2 } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import Dropdown from "../../../components/Dropdown";
 import { downloadImage } from "../../../lib/fileUtils";
+import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
+import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
 
 // Social media dimensions
 const SOCIAL_PRESETS = {
@@ -26,12 +28,25 @@ const socialOptions = Object.entries(SOCIAL_PRESETS).map(([key, preset]) => ({
 }));
 
 function SocialResizer() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
+  const { deleteImage } = useCloudinaryDelete();
   const [file, setFile] = useState<File | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<string>("facebook-cover");
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
+
+  // Restore processing state after authentication
+  useEffect(() => {
+    if (isLoaded && user) {
+      const savedState = getProcessingState();
+      if (savedState && savedState.processingType === 'social-resizer') {
+        setProcessedImage(savedState.processedImage);
+        toast.success('Your resized image has been restored!');
+        clearProcessingState();
+      }
+    }
+  }, [isLoaded, user]);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -74,6 +89,18 @@ function SocialResizer() {
       
       const data = await response.json();
       setProcessedImage(data.url);
+      
+      // Save processing state for potential authentication flow
+      if (!user) {
+        saveProcessingState({
+          processedImage: data.url,
+          originalSize: file.size,
+          compressedSize: file.size, // Estimate same size
+          fileName: file.name,
+          processingType: 'social-resizer'
+        });
+      }
+      
       toast.success("Image resized successfully!");
     } catch (error: any) {
       toast.error("Resize failed. Please try again.");
@@ -83,23 +110,76 @@ function SocialResizer() {
   };
 
   const handleDownload = async () => {
-    if (!processedImage) return;
-    
     if (!user) {
+      // Save state before redirecting
+      if (processedImage && file) {
+        saveProcessingState({
+          processedImage,
+          originalSize: file.size,
+          compressedSize: file.size,
+          fileName: file.name,
+          processingType: 'social-resizer'
+        });
+      }
       toast.error("Please sign in to download");
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
     
-    const success = await downloadImage(
-      processedImage,
-      `${selectedPreset}-${file?.name}`
-    );
+    if (!processedImage) return;
     
-    if (success) {
-      toast.success("Download completed!");
-    } else {
-      toast.error("Download failed");
-    }
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const attemptDownload = async (): Promise<boolean> => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
+        const response = await fetch(processedImage, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const success = await downloadImage(
+          processedImage,
+          `${selectedPreset}-${file?.name}`
+        );
+        
+        if (success) {
+          toast.success("Download completed!");
+          clearProcessingState();
+          await deleteImage(processedImage);
+          return true;
+        } else {
+          throw new Error('Download failed');
+        }
+      } catch (error: any) {
+        const isRetryable = 
+          error.name === 'AbortError' || 
+          error.name === 'TypeError' || 
+          error.message?.includes('Failed to fetch') ||
+          error.message?.includes('Network') ||
+          (error.message?.includes('HTTP') && /5\d{2}/.test(error.message));
+        
+        if (retryCount < maxRetries && isRetryable) {
+          retryCount++;
+          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+          return attemptDownload();
+        } else {
+          toast.error("Download failed. Please try again.");
+          return false;
+        }
+      }
+    };
+
+    await attemptDownload();
   };
 
   const currentPreset = SOCIAL_PRESETS[selectedPreset as keyof typeof SOCIAL_PRESETS];
