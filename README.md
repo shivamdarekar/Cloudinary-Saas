@@ -52,19 +52,25 @@
 - **Seamless upload experience** across all devices
 - **No client-side conversion** needed
 
+### 🔐 Dialog-Based Authentication
+- **Modal authentication** - No page navigation required
+- **Work preservation** - Continue seamlessly after sign-in
+- **Unified auth dialog** for both sign-in and sign-up
+- **Mobile-friendly** modal design with backdrop blur
+
 ---
 
 ## 🛠️ Technology Stack
 
 - **Frontend:** Next.js 15.1.7+, React 19, TypeScript
 - **Styling:** Tailwind CSS 4 with mobile-first responsive design
-- **Authentication:** Clerk (secure user management)
+- **Authentication:** Clerk with dialog-based auth (work preservation during sign-in)
 - **Cloud Services:** Cloudinary (AI-powered image processing & storage)
 - **Rate Limiting:** Upstash Redis with in-memory fallback (10 req/10sec per IP)
 - **UI Components:** Lucide React, Custom Components, Sonner (toast notifications)
 - **Architecture:** Component-based with reusable Sidebar, Navbar, Footer
 - **File Management:** Automated FileManager with queue system and batch downloads
-- **Shared Utilities:** Reusable hooks (useCloudinaryDelete), fileUtils, centralized rate limiter
+- **Shared Utilities:** Reusable hooks (useCloudinaryDelete, useAuthDialog), fileUtils, centralized rate limiter
 - **File Handling:** Drag & drop, HEIC/HEIF support, 10MB size validation
 - **Security:** Production-grade headers, XSS protection, CSRF prevention
 - **SEO:** Dynamic sitemap, robots.txt, optimized metadata
@@ -98,6 +104,7 @@
 ├── components/
 │   ├── ImageUpload.tsx       # Enhanced drag & drop with 10MB validation
 │   ├── ProcessingResult.tsx  # Results display component
+│   ├── AuthDialog.tsx        # Modal authentication component
 │   ├── Sidebar.tsx           # Navigation sidebar component
 │   ├── Navbar.tsx            # Top navigation bar component
 │   ├── Footer.tsx            # Animated footer with creator credit
@@ -105,6 +112,7 @@
 ├── lib/
 │   ├── fileUtils.ts          # Automated FileManager with queue system
 │   ├── useCloudinaryDelete.ts # Reusable delete hook
+│   ├── useAuthDialog.ts      # Auth dialog state management hook
 │   └── ratelimit.ts          # Centralized rate limiting with fallback
 └── middleware.ts             # Auth middleware
 ```
@@ -173,10 +181,11 @@ npm run dev
 ## 💡 Key Features Explained
 
 ### Component-Based Architecture
-- **Modular design**: Separate Sidebar, Navbar, Footer components
+- **Modular design**: Separate Sidebar, Navbar, Footer, AuthDialog components
 - **Reusable components**: Clean separation of concerns
 - **Maintainable codebase**: Easy to update and test individual components
 - **Layout composition**: Simple, clean layout file
+- **Dialog-based auth**: Modal authentication without page navigation
 
 ### Automated File Management
 - **FileManager singleton**: Centralized download handling
@@ -195,6 +204,8 @@ npm run dev
 - **User avatar**: First character of name in gradient circle
 - **Responsive sidebar**: Mobile-friendly with proper breakpoints
 - **Toast notifications**: Real-time feedback for all operations
+- **Modal authentication**: Dialog-based auth with work preservation
+- **Seamless UX**: No page navigation required for sign-in/sign-up
 
 ---
 
