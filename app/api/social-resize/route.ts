@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     // Smart cropping based on content
-    const result = await new Promise((resolve, reject) => {
+    const uploadPromise = new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         {
           resource_type: "image",
@@ -90,6 +90,14 @@ export async function POST(request: NextRequest) {
       ).end(buffer);
     });
 
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Upload timeout - please try again')), 30000)
+    );
+
+    const result = await Promise.race([uploadPromise, timeoutPromise]).catch(error => {
+      throw new Error(error?.message || 'Upload failed');
+    });
+
     return NextResponse.json({
       url: (result as any).secure_url,
       publicId: (result as any).public_id,
@@ -100,8 +108,21 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     // console.error("Social resize error:", error);
+    
+    let errorMessage = "Resize failed";
+    
+    if (error?.message?.includes('timeout')) {
+      errorMessage = "Upload timeout - please check your connection and try again";
+    } else if (error?.error?.message === 'Request Timeout' || error?.error?.name === 'TimeoutError') {
+      errorMessage = "Cloudinary timeout - please try again";
+    } else if (error?.code === 'ENOTFOUND' || error?.message?.includes('ENOTFOUND')) {
+      errorMessage = "Network error - please check your connection";
+    } else {
+      errorMessage = error?.message || error?.error?.message || "Resize failed";
+    }
+    
     return NextResponse.json(
-      { error: "Resize failed" },
+      { error: errorMessage },
       { status: 500 }
     );
   }

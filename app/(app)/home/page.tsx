@@ -3,9 +3,12 @@ import React from "react";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { ImageIcon, Zap, Shield, Download, ArrowRight, Share2, CreditCard, RefreshCw } from "lucide-react";
+import AuthDialog from "../../../components/AuthDialog";
+import { useAuthDialog } from "../../../lib/useAuthDialog";
 
 function Home() {
   const { user } = useUser();
+  const { isOpen, mode, openSignIn, openSignUp, close } = useAuthDialog();
 
   const features = [
     {
@@ -73,8 +76,8 @@ function Home() {
               <div className="space-y-4">
                 <p className="text-lg text-gray-700">Try our tools instantly. Login only required for downloads.</p>
                 <div className="flex gap-4 justify-center">
-                  <Link href="/sign-in" className="btn-primary">Sign In</Link>
-                  <Link href="/sign-up" className="btn-secondary">Sign Up</Link>
+                  <button onClick={openSignIn} className="btn-primary">Sign In</button>
+                  <button onClick={openSignUp} className="btn-secondary">Sign Up</button>
                 </div>
               </div>
             )}
@@ -197,6 +200,12 @@ function Home() {
           </div>
         </div>
       </div>
+      
+      <AuthDialog
+        isOpen={isOpen}
+        mode={mode}
+        onClose={close}
+      />
     </div>
   );
 }

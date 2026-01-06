@@ -5,6 +5,8 @@ import { ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import ProcessingResult from "../../../components/ProcessingResult";
+import AuthDialog from "../../../components/AuthDialog";
+import { useAuthDialog } from "../../../lib/useAuthDialog";
 import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 import { downloadImage } from "../../../lib/fileUtils";
 import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
@@ -12,6 +14,7 @@ import { saveProcessingState, getProcessingState, clearProcessingState } from ".
 function ImageOptimizer() {
   const { user, isLoaded } = useUser();
   const { deleteImage } = useCloudinaryDelete();
+  const { isOpen, mode, openSignIn, openSignUp, close } = useAuthDialog();
   const [file, setFile] = useState<File | null>(null);
   const [quality, setQuality] = useState<number>(80);
   const [width, setWidth] = useState<number>(800);
@@ -29,7 +32,7 @@ function ImageOptimizer() {
         setProcessedImage(savedState.processedImage);
         setOriginalSize(savedState.originalSize);
         setOptimizedSize(savedState.compressedSize);
-        toast.success('Your processed image has been restored!');
+        toast.success('Your processed image has been restored!', { duration: 3000 });
         clearProcessingState();
       }
     }
@@ -90,10 +93,10 @@ function ImageOptimizer() {
         });
       }
       
-      toast.success("Image optimized successfully!");
+      toast.success("Image optimized successfully!", { duration: 3000 });
     } catch (error: any) {
       // console.error("Image optimization error:", error);
-      toast.error(error.message || "Failed to optimize image");
+      toast.error(error.message || "Failed to optimize image", { duration: 5000 });
     } finally {
       setIsProcessing(false);
     }
@@ -101,7 +104,7 @@ function ImageOptimizer() {
 
   const handleDownload = async () => {
     if (!user) {
-      // Save state before redirecting
+      // Save state before showing auth dialog
       if (processedImage && file) {
         saveProcessingState({
           processedImage,
@@ -111,8 +114,6 @@ function ImageOptimizer() {
           processingType: 'optimize'
         });
       }
-      toast.error("Please sign in to download");
-      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
     
@@ -141,7 +142,7 @@ function ImageOptimizer() {
           );
           
           if (success) {
-            toast.success("Optimized image downloaded successfully!");
+            toast.success("Optimized image downloaded successfully!", { duration: 3000 });
             clearProcessingState();
             await deleteImage(processedImage);
             return true;
@@ -158,11 +159,11 @@ function ImageOptimizer() {
           
           if (retryCount < maxRetries && isRetryable) {
             retryCount++;
-            toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+            toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`, { duration: 4000 });
             await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
             return attemptDownload();
           } else {
-            toast.error("Download failed. Click download to try again.");
+            toast.error("Download failed. Click download to try again.", { duration: 5000 });
             return false;
           }
         }
@@ -272,10 +273,18 @@ function ImageOptimizer() {
               user={user}
               emptyStateText="Upload and optimize an image"
               showStats={true}
+              onSignInClick={openSignIn}
+              onSignUpClick={openSignUp}
             />
           </div>
         </div>
       </div>
+      
+      <AuthDialog
+        isOpen={isOpen}
+        mode={mode}
+        onClose={close}
+      />
     </div>
   );
 }

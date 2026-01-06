@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    const result = await new Promise((resolve, reject) => {
+    const uploadPromise = new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         {
           resource_type: 'image',
@@ -75,6 +75,14 @@ export async function POST(request: NextRequest) {
       ).end(buffer)
     })
 
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Upload timeout - please try again')), 30000)
+    )
+
+    const result = await Promise.race([uploadPromise, timeoutPromise]).catch(error => {
+      throw new Error(error?.message || 'Upload failed')
+    })
+
     return NextResponse.json({
       processedUrl: (result as any).secure_url,
       publicId: (result as any).public_id
@@ -82,6 +90,8 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     // console.error('Background removal error:', error)
+    
+    let errorMessage = 'Failed to remove background';
     
     // Handle specific Cloudinary errors
     if (error.http_code === 400 && error.message?.includes('File size too large')) {
@@ -91,8 +101,18 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    if (error?.message?.includes('timeout')) {
+      errorMessage = "Upload timeout - please check your connection and try again";
+    } else if (error?.error?.message === 'Request Timeout' || error?.error?.name === 'TimeoutError') {
+      errorMessage = "Cloudinary timeout - please try again";
+    } else if (error?.code === 'ENOTFOUND' || error?.message?.includes('ENOTFOUND')) {
+      errorMessage = "Network error - please check your connection";
+    } else {
+      errorMessage = error?.message || error?.error?.message || 'Failed to remove background';
+    }
+    
     return NextResponse.json(
-      { error: error.message || 'Failed to remove background' },
+      { error: errorMessage },
       { status: 500 }
     )
   }

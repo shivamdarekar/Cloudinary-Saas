@@ -40,7 +40,7 @@ export default function ImageUpload({
     
     const files = e.dataTransfer.files;
     if (files && files.length > 1) {
-      toast.error('Please upload only one image at a time');
+      toast.error('Please upload only one image at a time', { duration: 4000 });
       return;
     }
     if (files && files[0]) {
@@ -51,7 +51,7 @@ export default function ImageUpload({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 1) {
-      toast.error('Please select only one image at a time');
+      toast.error('Please select only one image at a time', { duration: 4000 });
       e.target.value = '';
       return;
     }
@@ -88,7 +88,7 @@ export default function ImageUpload({
                     /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)$/i.test(selectedFile.name);
     
     if (!isImage) {
-      toast.error('Please select a valid image file (JPG, PNG, WebP, GIF, HEIC)');
+      toast.error('Please select a valid image file (JPG, PNG, WebP, GIF, HEIC)', { duration: 5000 });
       return;
     }
 
@@ -101,7 +101,7 @@ export default function ImageUpload({
     // Check file size
     const fileSizeMB = selectedFile.size / (1024 * 1024);
     if (fileSizeMB > maxSize) {
-      toast.error(`File size must be less than ${maxSize}MB`);
+      toast.error(`File size must be less than ${maxSize}MB`, { duration: 4000 });
       return;
     }
 
@@ -113,7 +113,7 @@ export default function ImageUpload({
         // File is valid image
         try {
           onFileSelect(selectedFile);
-          toast.success('Image selected successfully!');
+          toast.success('Image selected successfully!', { duration: 3000 });
         } catch (error) {
           toast.error('Failed to process the image');
         }
@@ -175,10 +175,10 @@ export default function ImageUpload({
       ) : (
         <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <FileImage className="w-5 h-5 text-blue-600" />
-              <div>
-                <p className="font-medium text-gray-900">{file.name}</p>
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
+              <FileImage className="w-5 h-5 text-blue-600 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-gray-900 truncate" title={file.name}>{file.name}</p>
                 <p className="text-sm text-gray-600">
                   Size: {formatFileSize(file.size)}
                 </p>
@@ -191,7 +191,7 @@ export default function ImageUpload({
                 console.log('Remove file clicked');
                 onRemoveFile();
               }}
-              className="p-1 hover:bg-blue-100 rounded-full transition-colors"
+              className="p-1 hover:bg-blue-100 rounded-full transition-colors flex-shrink-0 ml-2"
               title="Remove file"
             >
               <X className="w-4 h-4 text-gray-500" />

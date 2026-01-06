@@ -1,6 +1,6 @@
 "use client";
-import React, { useEffect, useState } from 'react';
-import { Download, AlertCircle } from 'lucide-react';
+import React from 'react';
+import { Download } from 'lucide-react';
 
 interface ProcessingResultProps {
   processedImage: string | null;
@@ -12,6 +12,8 @@ interface ProcessingResultProps {
   emptyStateText?: string;
   showStats?: boolean;
   children?: React.ReactNode;
+  onSignInClick?: () => void;
+  onSignUpClick?: () => void;
 }
 
 export default function ProcessingResult({
@@ -23,13 +25,10 @@ export default function ProcessingResult({
   user,
   emptyStateText = "Upload and process an image",
   showStats = true,
-  children
+  children,
+  onSignInClick,
+  onSignUpClick
 }: ProcessingResultProps) {
-  const [currentPath, setCurrentPath] = useState('');
-
-  useEffect(() => {
-    setCurrentPath(window.location.pathname);
-  }, []);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -110,7 +109,7 @@ export default function ProcessingResult({
           </p>
           
           <button
-            onClick={() => window.location.href = `/sign-in?redirect_url=${encodeURIComponent(currentPath)}`}
+            onClick={onSignInClick}
             className="btn-primary w-full flex items-center justify-center"
           >
             <Download className="w-4 h-4 mr-2" />
@@ -119,12 +118,12 @@ export default function ProcessingResult({
           
           <div className="text-center">
             <span className="text-sm text-gray-500">Don't have an account? </span>
-            <a
-              href={`/sign-up?redirect_url=${encodeURIComponent(currentPath)}`}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            <button
+              onClick={onSignUpClick}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium underline bg-transparent border-none cursor-pointer"
             >
               Sign up
-            </a>
+            </button>
           </div>
         </div>
       ) : (

@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const result = await new Promise((resolve, reject) => {
+    // Add timeout to Cloudinary upload (30 seconds)
+    const uploadPromise = new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           resource_type: "image",
@@ -90,6 +91,14 @@ export async function POST(request: NextRequest) {
       uploadStream.end(buffer);
     });
 
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Upload timeout - please try again')), 30000)
+    );
+
+    const result = await Promise.race([uploadPromise, timeoutPromise]).catch(error => {
+      throw new Error(error?.message || 'Upload failed');
+    });
+
     // Extract original format safely
     const originalFormat = extractFileFormat(file).toLowerCase();
 
@@ -105,7 +114,17 @@ export async function POST(request: NextRequest) {
     // console.error("Format conversion error:", error);
     // console.error("Error details:", JSON.stringify(error, null, 2));
     
-    const errorMessage = error?.message || error?.error?.message || "Conversion failed";
+    let errorMessage = "Conversion failed";
+    
+    if (error?.message?.includes('timeout')) {
+      errorMessage = "Upload timeout - please check your connection and try again";
+    } else if (error?.error?.message === 'Request Timeout' || error?.error?.name === 'TimeoutError') {
+      errorMessage = "Cloudinary timeout - please try again";
+    } else if (error?.code === 'ENOTFOUND' || error?.message?.includes('ENOTFOUND')) {
+      errorMessage = "Network error - please check your connection";
+    } else {
+      errorMessage = error?.message || error?.error?.message || "Conversion failed";
+    }
     
     return NextResponse.json(
       { 

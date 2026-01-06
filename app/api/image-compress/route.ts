@@ -115,8 +115,6 @@ export async function POST(request: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const targetSizeBytes = targetSizeKB * 1024;
-    const originalSize = file.size;
 
     // Smart compression strategy - try to hit target size iteratively
     const compressionRatio = targetSizeBytes / originalSize;

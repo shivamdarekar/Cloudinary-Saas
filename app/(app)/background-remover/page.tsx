@@ -5,6 +5,8 @@ import { Scissors } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import ProcessingResult from "../../../components/ProcessingResult";
+import AuthDialog from "../../../components/AuthDialog";
+import { useAuthDialog } from "../../../lib/useAuthDialog";
 import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 import { downloadImage } from "../../../lib/fileUtils";
 import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
@@ -12,6 +14,7 @@ import { saveProcessingState, getProcessingState, clearProcessingState } from ".
 function BackgroundRemover() {
   const { user, isLoaded } = useUser();
   const { deleteImage } = useCloudinaryDelete();
+  const { isOpen, mode, openSignIn, openSignUp, close } = useAuthDialog();
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
@@ -26,7 +29,7 @@ function BackgroundRemover() {
         setProcessedImage(savedState.processedImage);
         setOriginalSize(savedState.originalSize);
         setProcessedSize(savedState.compressedSize);
-        toast.success('Your processed image has been restored!');
+        toast.success('Your processed image has been restored!', { duration: 3000 });
         clearProcessingState();
       }
     }
@@ -81,10 +84,10 @@ function BackgroundRemover() {
         });
       }
       
-      toast.success("Background removed successfully!");
+      toast.success("Background removed successfully!", { duration: 3000 });
     } catch (error: any) {
       // console.error("Background removal error:", error);
-      toast.error(error.message || "Failed to remove background");
+      toast.error(error.message || "Failed to remove background", { duration: 5000 });
     } finally {
       setIsProcessing(false);
     }
@@ -92,7 +95,7 @@ function BackgroundRemover() {
 
   const handleDownload = async () => {
     if (!user) {
-      // Save state before redirecting
+      // Save state before showing auth dialog
       if (processedImage && file) {
         saveProcessingState({
           processedImage,
@@ -102,8 +105,6 @@ function BackgroundRemover() {
           processingType: 'background-remove'
         });
       }
-      toast.error("Please sign in to download");
-      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
     
@@ -132,7 +133,7 @@ function BackgroundRemover() {
           );
           
           if (success) {
-            toast.success("Background removed image downloaded!");
+            toast.success("Background removed image downloaded!", { duration: 3000 });
             clearProcessingState();
             await deleteImage(processedImage);
             return true;
@@ -149,11 +150,11 @@ function BackgroundRemover() {
           
           if (retryCount < maxRetries && isRetryable) {
             retryCount++;
-            toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+            toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`, { duration: 4000 });
             await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
             return attemptDownload();
           } else {
-            toast.error("Download failed. Please try again.");
+            toast.error("Download failed. Please try again.", { duration: 5000 });
             return false;
           }
         }
@@ -230,6 +231,8 @@ function BackgroundRemover() {
               user={user}
               emptyStateText="Upload an image to remove background"
               showStats={true}
+              onSignInClick={openSignIn}
+              onSignUpClick={openSignUp}
             >
               {processedImage && (
                 <div className="bg-green-50 p-4 rounded-lg">
@@ -242,6 +245,12 @@ function BackgroundRemover() {
           </div>
         </div>
       </div>
+      
+      <AuthDialog
+        isOpen={isOpen}
+        mode={mode}
+        onClose={close}
+      />
     </div>
   );
 }

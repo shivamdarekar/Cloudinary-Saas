@@ -1,10 +1,12 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
-import { Share2 } from "lucide-react";
+import { Share2, Download } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import Dropdown from "../../../components/Dropdown";
+import AuthDialog from "../../../components/AuthDialog";
+import { useAuthDialog } from "../../../lib/useAuthDialog";
 import { downloadImage } from "../../../lib/fileUtils";
 import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
@@ -30,6 +32,7 @@ const socialOptions = Object.entries(SOCIAL_PRESETS).map(([key, preset]) => ({
 function SocialResizer() {
   const { user, isLoaded } = useUser();
   const { deleteImage } = useCloudinaryDelete();
+  const { isOpen, mode, openSignIn, openSignUp, close } = useAuthDialog();
   const [file, setFile] = useState<File | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<string>("facebook-cover");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -42,7 +45,7 @@ function SocialResizer() {
       const savedState = getProcessingState();
       if (savedState && savedState.processingType === 'social-resizer') {
         setProcessedImage(savedState.processedImage);
-        toast.success('Your resized image has been restored!');
+        toast.success('Your resized image has been restored!', { duration: 3000 });
         clearProcessingState();
       }
     }
@@ -101,9 +104,9 @@ function SocialResizer() {
         });
       }
       
-      toast.success("Image resized successfully!");
+      toast.success("Image resized successfully!", { duration: 3000 });
     } catch (error: any) {
-      toast.error("Resize failed. Please try again.");
+      toast.error("Resize failed. Please try again.", { duration: 5000 });
     } finally {
       setIsProcessing(false);
     }
@@ -111,7 +114,7 @@ function SocialResizer() {
 
   const handleDownload = async () => {
     if (!user) {
-      // Save state before redirecting
+      // Save state before showing auth dialog
       if (processedImage && file) {
         saveProcessingState({
           processedImage,
@@ -121,8 +124,8 @@ function SocialResizer() {
           processingType: 'social-resizer'
         });
       }
-      toast.error("Please sign in to download");
-      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
+      toast.error("Please sign in to download your resized image");
+      openSignIn();
       return;
     }
     
@@ -152,7 +155,7 @@ function SocialResizer() {
         );
         
         if (success) {
-          toast.success("Download completed!");
+          toast.success("Download completed!", { duration: 3000 });
           clearProcessingState();
           await deleteImage(processedImage);
           return true;
@@ -169,11 +172,11 @@ function SocialResizer() {
         
         if (retryCount < maxRetries && isRetryable) {
           retryCount++;
-          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`, { duration: 4000 });
           await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
           return attemptDownload();
         } else {
-          toast.error("Download failed. Please try again.");
+          toast.error("Download failed. Please try again.", { duration: 5000 });
           return false;
         }
       }
@@ -230,8 +233,9 @@ function SocialResizer() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-900">Preview</h2>
               {processedImage && (
-                <button onClick={handleDownload} className="btn-secondary">
-                  Download
+                <button onClick={handleDownload} className="btn-secondary flex items-center">
+                  <Download className="w-4 h-4 mr-2" />
+                  {user ? "Download" : "Sign In to Download"}
                 </button>
               )}
             </div>
@@ -266,6 +270,12 @@ function SocialResizer() {
           </div>
         </div>
       </div>
+      
+      <AuthDialog
+        isOpen={isOpen}
+        mode={mode}
+        onClose={close}
+      />
     </div>
   );
 }

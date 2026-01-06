@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   description: "Professional image processing tools: compress, optimize, remove backgrounds, create passport photos, and more. Powered by AI.",
   keywords: ["image processing", "AI tools", "image compression", "background remover", "passport photo maker"],
   authors: [{ name: "ImageCraft Pro" }],
+  icons: {
+    icon: '/imagecraft-logo.png',
+    shortcut: '/imagecraft-logo.png',
+    apple: '/imagecraft-logo.png',
+  },
   openGraph: {
     title: "ImageCraft Pro",
     description: "AI-Powered Image Processing Suite",
@@ -38,7 +43,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
-        <Toaster position="top-right" richColors />
+        <Toaster 
+          position="top-right" 
+          richColors 
+          duration={4000}
+          closeButton
+        />
       </body>
     </html>
     </ClerkProvider>

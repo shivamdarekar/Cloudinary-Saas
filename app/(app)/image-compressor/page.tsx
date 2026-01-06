@@ -6,6 +6,9 @@ import axios from "axios";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import ProcessingResult from "../../../components/ProcessingResult";
+import WorkRestoredNotification from "../../../components/WorkRestoredNotification";
+import AuthDialog from "../../../components/AuthDialog";
+import { useAuthDialog } from "../../../lib/useAuthDialog";
 import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 import { downloadImage } from "../../../lib/fileUtils";
 import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
@@ -13,6 +16,7 @@ import { saveProcessingState, getProcessingState, clearProcessingState } from ".
 function ImageCompressor() {
   const { user, isLoaded } = useUser();
   const { deleteImage } = useCloudinaryDelete();
+  const { isOpen, mode, openSignIn, openSignUp, close } = useAuthDialog();
   const [file, setFile] = useState<File | null>(null);
   const [targetSize, setTargetSize] = useState<number>(100);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -20,6 +24,7 @@ function ImageCompressor() {
   const [originalSize, setOriginalSize] = useState<number>(0);
   const [compressedSize, setCompressedSize] = useState<number>(0);
   const [originalPublicId, setOriginalPublicId] = useState<string | null>(null);
+  const [showWorkRestored, setShowWorkRestored] = useState(false);
 
   // Restore processing state after authentication
   useEffect(() => {
@@ -32,7 +37,7 @@ function ImageCompressor() {
         if (savedState.targetSize) {
           setTargetSize(savedState.targetSize);
         }
-        toast.success('Your processed image has been restored!');
+        setShowWorkRestored(true);
         // Clear the saved state after restoration
         clearProcessingState();
       }
@@ -78,12 +83,12 @@ function ImageCompressor() {
     const minTargetSize = Math.max(1, Math.floor(file.size * 0.01)); // At least 1% of original
     
     if (targetSizeBytes >= file.size) {
-      toast.error('Target size must be smaller than original file size');
+      toast.error('Target size must be smaller than original file size', { duration: 5000 });
       return;
     }
     
     if (targetSizeBytes < minTargetSize) {
-      toast.error(`Target size too small. Minimum: ${Math.ceil(minTargetSize / 1024)}KB`);
+      toast.error(`Target size too small. Minimum: ${Math.ceil(minTargetSize / 1024)}KB`, { duration: 5000 });
       return;
     }
 
@@ -116,7 +121,7 @@ function ImageCompressor() {
           });
         }
         
-        toast.success("Image compressed successfully!");
+        toast.success("Image compressed successfully!", { duration: 3000 });
       } catch (error: any) {
         const isRetryable = error.code === 'ECONNABORTED' || 
                            error.code === 'NETWORK_ERROR' || 
@@ -124,11 +129,11 @@ function ImageCompressor() {
         
         if (retryCount < maxRetries && isRetryable) {
           retryCount++;
-          toast.error(`Network error. Retrying... (${retryCount}/${maxRetries})`);
+          toast.error(`Network error. Retrying... (${retryCount}/${maxRetries})`, { duration: 4000 });
           await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
           return attemptCompress();
         } else {
-          toast.error(error.response?.data?.error || "Compression failed");
+          toast.error(error.response?.data?.error || "Compression failed", { duration: 5000 });
           throw error;
         }
       }
@@ -145,7 +150,7 @@ function ImageCompressor() {
 
   const handleDownload = async () => {
     if (!user) {
-      // Save state before redirecting
+      // Save state before showing auth dialog
       if (processedImage && file) {
         saveProcessingState({
           processedImage,
@@ -156,8 +161,6 @@ function ImageCompressor() {
           processingType: 'compress'
         });
       }
-      toast.error("Please sign in to download");
-      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
     
@@ -187,7 +190,7 @@ function ImageCompressor() {
         );
         
         if (success) {
-          toast.success("Download completed successfully!");
+          toast.success("Download completed successfully!", { duration: 3000 });
           clearProcessingState();
           // Delete both original and compressed images from Cloudinary
           if (originalPublicId) {
@@ -208,11 +211,11 @@ function ImageCompressor() {
         
         if (retryCount < maxRetries && isRetryable) {
           retryCount++;
-          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`, { duration: 4000 });
           await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
           return attemptDownload();
         } else {
-          toast.error("Download failed. Click download to try again.");
+          toast.error("Download failed. Click download to try again.", { duration: 5000 });
           return false;
         }
       }
@@ -301,10 +304,24 @@ function ImageCompressor() {
               user={user}
               emptyStateText="Upload and compress an image"
               showStats={true}
+              onSignInClick={openSignIn}
+              onSignUpClick={openSignUp}
             />
           </div>
         </div>
+        
+        <WorkRestoredNotification
+          show={showWorkRestored}
+          onClose={() => setShowWorkRestored(false)}
+          processingType="compressed"
+        />
       </div>
+      
+      <AuthDialog
+        isOpen={isOpen}
+        mode={mode}
+        onClose={close}
+      />
     </div>
   );
 }

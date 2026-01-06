@@ -5,6 +5,8 @@ import { RefreshCw, Download } from "lucide-react";
 import { toast } from "sonner";
 import ImageUpload from "../../../components/ImageUpload";
 import Dropdown from "../../../components/Dropdown";
+import AuthDialog from "../../../components/AuthDialog";
+import { useAuthDialog } from "../../../lib/useAuthDialog";
 import { useCloudinaryDelete } from "../../../lib/useCloudinaryDelete";
 import { downloadImage, extractFileFormat } from "../../../lib/fileUtils";
 import { saveProcessingState, getProcessingState, clearProcessingState } from "../../../lib/workPreservation";
@@ -28,6 +30,7 @@ const QUALITY_OPTIONS = [
 export default function FormatConverter() {
   const { user, isLoaded } = useUser();
   const { deleteImage } = useCloudinaryDelete();
+  const { isOpen, mode, openSignIn, openSignUp, close } = useAuthDialog();
   const [file, setFile] = useState<File | null>(null);
   const [targetFormat, setTargetFormat] = useState("webp");
   const [quality, setQuality] = useState("auto");
@@ -43,7 +46,7 @@ export default function FormatConverter() {
       if (savedState && savedState.processingType === 'format-convert') {
         setConvertedImage(savedState.processedImage);
         setConvertedSize(savedState.compressedSize);
-        toast.success('Your converted image has been restored!');
+        toast.success('Your converted image has been restored!', { duration: 3000 });
         clearProcessingState();
       }
     }
@@ -94,10 +97,10 @@ export default function FormatConverter() {
           processingType: 'format-convert'
         });
       }
-      toast.success(`Converted to ${targetFormat.toUpperCase()}!`);
+      toast.success(`Converted to ${targetFormat.toUpperCase()}!`, { duration: 3000 });
     } catch (error: any) {
       // console.error('Format conversion error:', error);
-      toast.error(error.message || "Conversion failed. Please try again.");
+      toast.error(error.message || "Conversion failed. Please try again.", { duration: 5000 });
     } finally {
       setIsConverting(false);
     }
@@ -105,7 +108,7 @@ export default function FormatConverter() {
 
   const handleDownload = async () => {
     if (!user) {
-      // Save state before redirecting
+      // Save state before showing auth dialog
       if (convertedImage && file) {
         saveProcessingState({
           processedImage: convertedImage,
@@ -115,8 +118,8 @@ export default function FormatConverter() {
           processingType: 'format-convert'
         });
       }
-      toast.error("Please sign in to download");
-      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
+      toast.error("Please sign in to download your converted image");
+      openSignIn();
       return;
     }
 
@@ -146,7 +149,7 @@ export default function FormatConverter() {
         );
         
         if (success) {
-          toast.success("Download completed!");
+          toast.success("Download completed!", { duration: 3000 });
           clearProcessingState();
           await deleteImage(convertedImage);
           return true;
@@ -163,11 +166,11 @@ export default function FormatConverter() {
         
         if (retryCount < maxRetries && isRetryable) {
           retryCount++;
-          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`);
+          toast.error(`Download failed. Retrying... (${retryCount}/${maxRetries})`, { duration: 4000 });
           await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
           return attemptDownload();
         } else {
-          toast.error("Download failed. Click download to try again.");
+          toast.error("Download failed. Click download to try again.", { duration: 5000 });
           return false;
         }
       }
@@ -249,16 +252,20 @@ export default function FormatConverter() {
               <p className="text-gray-600">
                 Format: <span className="font-semibold">{targetFormat.toUpperCase()}</span>
               </p>
-              {user && (
-                <button onClick={handleDownload} className="btn-primary">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </button>
-              )}
+              <button onClick={handleDownload} className="btn-primary flex items-center">
+                <Download className="w-4 h-4 mr-2" />
+                {user ? "Download" : "Sign In to Download"}
+              </button>
             </div>
           </div>
         )}
       </div>
+      
+      <AuthDialog
+        isOpen={isOpen}
+        mode={mode}
+        onClose={close}
+      />
     </div>
   );
 }
