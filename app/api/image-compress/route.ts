@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
 
             // If we're within 10% of target, that's good enough
             if (transformedSize >= targetSizeBytes * 0.9 && transformedSize <= targetSizeBytes * 1.1) {
-              // console.log(`✅ Found optimal compression at ${format} q:${quality}`);
+              // console.log(`Found optimal compression at ${format} q:${quality}`);
               break;
             }
           }
@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
             };
 
             if (transformedSize <= targetSizeBytes * 1.1) {
-              // console.log(`✅ Found optimal with resize at q:${quality}`);
+              // console.log(`Found optimal with resize at q:${quality}`);
               break;
             }
           }
